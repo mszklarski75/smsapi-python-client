@@ -1039,6 +1039,24 @@ def save_template():
     return jsonify({'success': True, 'message': 'Szablon został zapisany.', 'id': tpl_id})
 
 
+@app.route('/api/templates/<int:id>', methods=['PUT'])
+def update_template(id):
+    data = request.json or {}
+    name = data.get('name', '').strip()
+    content = data.get('content', '').strip()
+    category = data.get('category', 'Własne').strip()
+
+    if not name or not content:
+        return jsonify({'success': False, 'error': 'Nazwa i treść szablonu są wymagane.'}), 400
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute('UPDATE templates SET name = ?, content = ?, category = ? WHERE id = ?', (name, content, category, id))
+        conn.commit()
+
+    return jsonify({'success': True, 'message': 'Szablon został zaktualizowany.'})
+
+
 @app.route('/api/templates/<int:id>', methods=['DELETE'])
 def delete_template(id):
     with get_db() as conn:

@@ -99,8 +99,13 @@
                 <div class="pt-3 pb-1 px-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Wysyłka</div>
 
                 <button onclick="switchTab('sms-send')" id="nav-sms-send" class="nav-btn w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-all">
-                    <i class="fa-solid fa-comment-sms w-5 text-center"></i>
+                    <i class="fa-solid fa-comment-sms w-5 text-center text-blue-500"></i>
                     <span>Wysyłka SMS</span>
+                </button>
+
+                <button onclick="switchTab('templates')" id="nav-templates" class="nav-btn w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-all">
+                    <i class="fa-solid fa-file-lines w-5 text-center text-amber-500"></i>
+                    <span>Szablony SMS</span>
                 </button>
 
                 <button onclick="switchTab('bulk-csv')" id="nav-bulk-csv" class="nav-btn w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-all">
@@ -290,6 +295,9 @@
                         <select id="smsTemplateSelect" onchange="applySmsTemplate(this.value)" class="text-xs px-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700 outline-none">
                             <option value="">-- Wybierz szablon --</option>
                         </select>
+                        <button onclick="switchTab('templates')" class="px-2.5 py-1.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 transition-colors flex items-center gap-1">
+                            <i class="fa-solid fa-gear text-[10px]"></i> Zarządzaj
+                        </button>
                     </div>
                 </div>
 
@@ -405,6 +413,38 @@
                             </div>
                         </div>
                     </div>
+                </div>
+            </section>
+
+            <!-- TAB 2.5: TEMPLATES MANAGER -->
+            <section id="tab-templates" class="tab-content hidden space-y-6">
+                <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                    <div>
+                        <h2 class="text-xl font-bold text-slate-800 dark:text-white">Szablony Wiadomości SMS</h2>
+                        <p class="text-xs text-slate-500 mt-0.5">Twórz, edytuj i organizuj szablony wiadomości ze znacznikami dynamicznymi.</p>
+                    </div>
+                    <button onclick="openCreateTemplateModal()" class="px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-amber-500/20 flex items-center gap-2">
+                        <i class="fa-solid fa-plus"></i> Dodaj nowy szablon
+                    </button>
+                </div>
+
+                <!-- Template filter bar -->
+                <div class="flex flex-wrap items-center gap-3">
+                    <input type="text" id="templateSearchInput" placeholder="Szukaj szablonu po nazwie lub treści..." oninput="filterTemplatesGrid()" class="flex-1 min-w-[200px] px-3.5 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700 outline-none">
+                    <select id="templateCategoryFilter" onchange="filterTemplatesGrid()" class="px-3.5 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700 outline-none">
+                        <option value="">Wszystkie kategorie</option>
+                        <option value="E-commerce">E-commerce</option>
+                        <option value="Marketing">Marketing</option>
+                        <option value="Logistyka">Logistyka</option>
+                        <option value="Medycyna / Usługi">Medycyna / Usługi</option>
+                        <option value="Bezpieczeństwo">Bezpieczeństwo</option>
+                        <option value="Własne">Własne</option>
+                    </select>
+                </div>
+
+                <!-- Templates Cards Grid -->
+                <div id="templatesGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <!-- Loaded dynamically -->
                 </div>
             </section>
 
@@ -1005,6 +1045,55 @@
         </div>
     </div>
 
+    <!-- Template Create/Edit Modal Dialog -->
+    <div id="templateModal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-700 space-y-4">
+            <div class="flex items-center justify-between">
+                <h3 id="templateModalTitle" class="font-bold text-base">Dodaj nowy szablon SMS</h3>
+                <button onclick="closeTemplateModal()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <form onsubmit="handleSaveTemplateForm(event)" class="space-y-3 text-xs">
+                <input type="hidden" id="modalTemplateId" value="">
+                <div>
+                    <label class="block font-semibold mb-1">Nazwa szablonu *</label>
+                    <input type="text" id="modalTemplateName" required placeholder="np. Przypomnienie o płatności" class="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700 outline-none">
+                </div>
+                <div>
+                    <label class="block font-semibold mb-1">Kategoria</label>
+                    <select id="modalTemplateCategory" class="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700 outline-none">
+                        <option value="Własne">Własne</option>
+                        <option value="E-commerce">E-commerce</option>
+                        <option value="Marketing">Marketing</option>
+                        <option value="Logistyka">Logistyka</option>
+                        <option value="Medycyna / Usługi">Medycyna / Usługi</option>
+                        <option value="Bezpieczeństwo">Bezpieczeństwo</option>
+                        <option value="Ogólne">Ogólne</option>
+                    </select>
+                </div>
+                <div>
+                    <div class="flex items-center justify-between mb-1">
+                        <label class="block font-semibold">Treść wiadomości *</label>
+                        <span class="text-[11px] text-slate-400">Możesz używać: [%1%], [%2%], [%code%]</span>
+                    </div>
+                    <textarea id="modalTemplateContent" rows="4" required placeholder="Wpisz treść szablonu..." class="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700 outline-none custom-scrollbar"></textarea>
+                </div>
+                <!-- Helper tag pills -->
+                <div>
+                    <span class="text-[11px] text-slate-400 font-medium">Szybkie znaczniki:</span>
+                    <div class="flex flex-wrap gap-1 mt-1">
+                        <button type="button" onclick="insertTagToTemplateModal('[%1%]')" class="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-700 text-blue-600 font-mono text-[11px]">[%1%]</button>
+                        <button type="button" onclick="insertTagToTemplateModal('[%2%]')" class="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-700 text-blue-600 font-mono text-[11px]">[%2%]</button>
+                        <button type="button" onclick="insertTagToTemplateModal('[%code%]')" class="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-700 text-indigo-600 font-mono text-[11px]">[%code%]</button>
+                    </div>
+                </div>
+                <div class="flex gap-2 pt-2">
+                    <button type="button" onclick="closeTemplateModal()" class="flex-1 py-2.5 border rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700 font-medium">Anuluj</button>
+                    <button type="submit" class="flex-1 py-2.5 bg-amber-500 text-white rounded-xl font-semibold hover:bg-amber-600 shadow">Zapisz szablon</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- MAIN JAVASCRIPT APPLICATION LOGIC -->
     <script>
         // State variables
@@ -1040,6 +1129,7 @@
             }
 
             // Lazy fetch data based on tab
+            if (tabId === 'templates') renderTemplatesGrid(savedTemplates);
             if (tabId === 'history') fetchHistory();
             if (tabId === 'contacts') fetchContacts();
             if (tabId === 'blacklist') fetchBlacklist();
@@ -1264,20 +1354,161 @@
             }
         }
 
-        // Templates Management
+        // ==========================================
+        // Templates Management (Add / Edit / Delete)
+        // ==========================================
         async function fetchTemplates() {
             try {
                 const res = await fetch('/api/templates');
                 const data = await res.json();
                 savedTemplates = data.templates || [];
+
+                // Update select dropdown in SMS Send tab
                 const select = document.getElementById('smsTemplateSelect');
                 if (select) {
                     select.innerHTML = `<option value="">-- Wybierz szablon --</option>` +
                         savedTemplates.map(t => `<option value="${t.id}">${t.name} (${t.category})</option>`).join('');
                 }
+
+                // Render grid if on templates tab
+                renderTemplatesGrid(savedTemplates);
             } catch (e) {
                 console.error(e);
             }
+        }
+
+        function renderTemplatesGrid(list) {
+            const grid = document.getElementById('templatesGrid');
+            if (!grid) return;
+
+            if (list.length === 0) {
+                grid.innerHTML = `<div class="col-span-full py-12 text-center text-slate-400">Brak szablonów spełniających kryteria. Kliknij "+ Dodaj nowy szablon", aby stworzyć pierwszy!</div>`;
+                return;
+            }
+
+            grid.innerHTML = list.map(t => `
+                <div class="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col justify-between hover:border-amber-400 transition-all">
+                    <div>
+                        <div class="flex items-center justify-between gap-2 mb-2">
+                            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">${t.category || 'Ogólne'}</span>
+                            <span class="text-[10px] text-slate-400">${t.content.length} znaków</span>
+                        </div>
+                        <h4 class="font-bold text-sm text-slate-800 dark:text-white mb-2">${t.name}</h4>
+                        <p class="text-xs text-slate-600 dark:text-slate-300 line-clamp-3 bg-slate-50 dark:bg-slate-700/40 p-3 rounded-xl border border-slate-100 dark:border-slate-700/60 font-sans">${t.content}</p>
+                    </div>
+
+                    <div class="pt-4 mt-3 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between">
+                        <div class="flex gap-1.5">
+                            <button onclick="openEditTemplateModal(${t.id})" class="p-1.5 text-slate-400 hover:text-blue-600 transition-colors" title="Edytuj szablon"><i class="fa-solid fa-pen-to-square"></i></button>
+                            <button onclick="deleteTemplate(${t.id})" class="p-1.5 text-slate-400 hover:text-rose-600 transition-colors" title="Usuń szablon"><i class="fa-solid fa-trash"></i></button>
+                        </div>
+                        <button onclick="useTemplateInSms(${t.id})" class="px-3 py-1.5 bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/60 rounded-xl text-xs font-semibold transition-colors flex items-center gap-1.5">
+                            <i class="fa-solid fa-paper-plane text-[10px]"></i> Użyj w SMS
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function filterTemplatesGrid() {
+            const q = document.getElementById('templateSearchInput')?.value.toLowerCase() || '';
+            const cat = document.getElementById('templateCategoryFilter')?.value || '';
+
+            const filtered = savedTemplates.filter(t => {
+                const matchesQ = t.name.toLowerCase().includes(q) || t.content.toLowerCase().includes(q);
+                const matchesCat = !cat || t.category === cat;
+                return matchesQ && matchesCat;
+            });
+            renderTemplatesGrid(filtered);
+        }
+
+        function openCreateTemplateModal() {
+            document.getElementById('modalTemplateId').value = '';
+            document.getElementById('modalTemplateName').value = '';
+            document.getElementById('modalTemplateCategory').value = 'Własne';
+            document.getElementById('modalTemplateContent').value = '';
+            document.getElementById('templateModalTitle').textContent = 'Dodaj nowy szablon SMS';
+            document.getElementById('templateModal').classList.remove('hidden');
+        }
+
+        function openEditTemplateModal(id) {
+            const t = savedTemplates.find(item => item.id === id);
+            if (!t) return;
+            document.getElementById('modalTemplateId').value = t.id;
+            document.getElementById('modalTemplateName').value = t.name;
+            document.getElementById('modalTemplateCategory').value = t.category || 'Własne';
+            document.getElementById('modalTemplateContent').value = t.content;
+            document.getElementById('templateModalTitle').textContent = 'Edytuj szablon SMS';
+            document.getElementById('templateModal').classList.remove('hidden');
+        }
+
+        function closeTemplateModal() {
+            document.getElementById('templateModal').classList.add('hidden');
+        }
+
+        function insertTagToTemplateModal(tag) {
+            const txt = document.getElementById('modalTemplateContent');
+            txt.value += tag;
+        }
+
+        async function handleSaveTemplateForm(e) {
+            e.preventDefault();
+            const id = document.getElementById('modalTemplateId').value;
+            const name = document.getElementById('modalTemplateName').value.trim();
+            const category = document.getElementById('modalTemplateCategory').value;
+            const content = document.getElementById('modalTemplateContent').value.trim();
+
+            const url = id ? `/api/templates/${id}` : '/api/templates';
+            const method = id ? 'PUT' : 'POST';
+
+            try {
+                const res = await fetch(url, {
+                    method: method,
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ name, category, content })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    Swal.fire({ icon: 'success', title: id ? 'Zaktualizowano szablon!' : 'Dodano szablon!', text: data.message, timer: 1500, showConfirmButton: false });
+                    closeTemplateModal();
+                    await fetchTemplates();
+                } else {
+                    Swal.fire({ icon: 'error', title: 'Błąd', text: data.error });
+                }
+            } catch (err) {
+                Swal.fire({ icon: 'error', title: 'Błąd połączenia', text: err.message });
+            }
+        }
+
+        async function deleteTemplate(id) {
+            const confirm = await Swal.fire({
+                title: 'Usunąć ten szablon?',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'Tak, usuń',
+                cancelButtonText: 'Anuluj'
+            });
+            if (!confirm.isConfirmed) return;
+
+            try {
+                const res = await fetch(`/api/templates/${id}`, { method: 'DELETE' });
+                const data = await res.json();
+                if (data.success) {
+                    Swal.fire({ icon: 'success', title: 'Usunięto', text: data.message, timer: 1500, showConfirmButton: false });
+                    await fetchTemplates();
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        function useTemplateInSms(id) {
+            const t = savedTemplates.find(item => item.id === id);
+            if (!t) return;
+            switchTab('sms-send');
+            document.getElementById('smsMessageText').value = t.content;
+            document.getElementById('smsTemplateSelect').value = t.id;
+            calculateSmsMetrics();
         }
 
         function applySmsTemplate(templateId) {
