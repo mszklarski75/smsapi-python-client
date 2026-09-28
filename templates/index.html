@@ -1,0 +1,2041 @@
+<!DOCTYPE html>
+<html lang="pl" class="h-full bg-slate-50 dark:bg-slate-900">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SMSAPI Studio - Panel Zarządzania SMS & Komunikacją</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#ecfdf5',
+                            100: '#d1fae5',
+                            500: '#10b981',
+                            600: '#059669',
+                            700: '#047857',
+                        },
+                        smsapi: {
+                            light: '#00b0ff',
+                            DEFAULT: '#0084ff',
+                            dark: '#005bb5'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- PapaParse for CSV parsing -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <!-- SweetAlert2 for notifications -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+        .dark .custom-scrollbar::-webkit-scrollbar-thumb { background: #475569; }
+    </style>
+</head>
+<body class="h-full flex flex-col text-slate-800 dark:text-slate-100 antialiased overflow-hidden">
+
+    <!-- Top Navigation Bar -->
+    <header class="h-16 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between px-6 z-20 flex-shrink-0">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white font-bold text-xl shadow-md shadow-blue-500/20">
+                <i class="fa-solid fa-paper-plane text-lg"></i>
+            </div>
+            <div>
+                <div class="flex items-center gap-2">
+                    <span class="font-extrabold text-lg tracking-tight bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">SMSAPI Studio</span>
+                    <span class="px-2 py-0.5 text-xs font-semibold rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">v2.9.7</span>
+                </div>
+                <p class="text-xs text-slate-500 dark:text-slate-400">Centrum wysyłki SMS, MMS, VMS i 2FA</p>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-4">
+            <!-- Connection Status Pill -->
+            <div id="connectionPill" class="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium bg-slate-100 dark:bg-slate-700/50 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                <span class="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse" id="statusDot"></span>
+                <span id="statusText">Ładowanie połączenia...</span>
+            </div>
+
+            <!-- Balance Badge -->
+            <div class="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-emerald-500/10 to-teal-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-400">
+                <i class="fa-solid fa-coins text-emerald-500"></i>
+                <div class="text-xs">
+                    <span class="font-semibold text-slate-500 dark:text-slate-400">Saldo:</span>
+                    <span id="pointsBalance" class="font-bold text-sm ml-1">-- pkt</span>
+                </div>
+                <button onclick="fetchBalance(true)" title="Odśwież saldo" class="ml-1 p-1 hover:text-emerald-800 dark:hover:text-emerald-300 transition-colors">
+                    <i class="fa-solid fa-arrows-rotate text-xs"></i>
+                </button>
+            </div>
+
+            <!-- Theme Toggle -->
+            <button onclick="toggleDarkMode()" class="p-2 rounded-xl text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors" title="Przełącz motyw ciemny/jasny">
+                <i id="themeIcon" class="fa-solid fa-moon"></i>
+            </button>
+        </div>
+    </header>
+
+    <div class="flex flex-1 overflow-hidden">
+        <!-- Sidebar Navigation -->
+        <aside class="w-64 bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 flex flex-col justify-between p-4 flex-shrink-0 overflow-y-auto custom-scrollbar">
+            <nav class="space-y-1">
+                <button onclick="switchTab('dashboard')" id="nav-dashboard" class="nav-btn w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400">
+                    <i class="fa-solid fa-chart-pie w-5 text-center"></i>
+                    <span>Pulpit ogólny</span>
+                </button>
+
+                <div class="pt-3 pb-1 px-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Wysyłka</div>
+
+                <button onclick="switchTab('sms-send')" id="nav-sms-send" class="nav-btn w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-all">
+                    <i class="fa-solid fa-comment-sms w-5 text-center"></i>
+                    <span>Wysyłka SMS</span>
+                </button>
+
+                <button onclick="switchTab('bulk-csv')" id="nav-bulk-csv" class="nav-btn w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-all">
+                    <i class="fa-solid fa-file-csv w-5 text-center text-emerald-500"></i>
+                    <span>Wysyłka masowa (CSV)</span>
+                </button>
+
+                <button onclick="switchTab('mfa-verify')" id="nav-mfa-verify" class="nav-btn w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-all">
+                    <i class="fa-solid fa-shield-halved w-5 text-center text-indigo-500"></i>
+                    <span>Kody 2FA / MFA</span>
+                </button>
+
+                <button onclick="switchTab('vms-mms')" id="nav-vms-mms" class="nav-btn w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-all">
+                    <i class="fa-solid fa-phone-volume w-5 text-center text-purple-500"></i>
+                    <span>Głosowe VMS & MMS</span>
+                </button>
+
+                <div class="pt-3 pb-1 px-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Narzędzia & Baza</div>
+
+                <button onclick="switchTab('contacts')" id="nav-contacts" class="nav-btn w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-all">
+                    <i class="fa-solid fa-address-book w-5 text-center text-amber-500"></i>
+                    <span>Kontakty & Grupy</span>
+                </button>
+
+                <button onclick="switchTab('shorturl-hlr')" id="nav-shorturl-hlr" class="nav-btn w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-all">
+                    <i class="fa-solid fa-link w-5 text-center text-cyan-500"></i>
+                    <span>Skracacz & HLR</span>
+                </button>
+
+                <button onclick="switchTab('blacklist')" id="nav-blacklist" class="nav-btn w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-all">
+                    <i class="fa-solid fa-ban w-5 text-center text-rose-500"></i>
+                    <span>Czarna lista (Opt-out)</span>
+                </button>
+
+                <button onclick="switchTab('history')" id="nav-history" class="nav-btn w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-all">
+                    <i class="fa-solid fa-clock-rotate-left w-5 text-center text-slate-500"></i>
+                    <span>Historia wysyłek</span>
+                </button>
+            </nav>
+
+            <div class="pt-4 border-t border-slate-200 dark:border-slate-700">
+                <button onclick="switchTab('settings')" id="nav-settings" class="nav-btn w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-all">
+                    <i class="fa-solid fa-gear w-5 text-center text-slate-400"></i>
+                    <span>Ustawienia API</span>
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="flex-1 overflow-y-auto custom-scrollbar p-6 bg-slate-50 dark:bg-slate-900">
+
+            <!-- TAB 1: DASHBOARD -->
+            <section id="tab-dashboard" class="tab-content space-y-6">
+                <!-- Welcome Banner -->
+                <div class="p-6 rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-lg shadow-indigo-500/10 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                    <div>
+                        <h1 class="text-2xl font-bold">Witaj w SMSAPI Studio 👋</h1>
+                        <p class="text-blue-100 text-sm mt-1">Kompletna platforma do masowej i transakcyjnej wysyłki powiadomień SMS, MMS, VMS i 2FA.</p>
+                    </div>
+                    <div class="flex gap-3">
+                        <button onclick="switchTab('sms-send')" class="px-4 py-2 bg-white text-blue-600 rounded-xl font-semibold text-sm hover:bg-blue-50 transition-colors shadow flex items-center gap-2">
+                            <i class="fa-solid fa-plus"></i> Nowa wysyłka SMS
+                        </button>
+                        <button onclick="switchTab('bulk-csv')" class="px-4 py-2 bg-blue-700/60 hover:bg-blue-700 text-white border border-white/20 rounded-xl font-semibold text-sm transition-colors flex items-center gap-2">
+                            <i class="fa-solid fa-file-import"></i> Importuj CSV
+                        </button>
+                    </div>
+                </div>
+
+                <!-- KPI Stats Grid -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div class="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-sm flex items-center gap-4">
+                        <div class="w-12 h-12 rounded-xl bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-xl">
+                            <i class="fa-solid fa-wallet"></i>
+                        </div>
+                        <div>
+                            <p class="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Saldo konta</p>
+                            <h3 id="statBalance" class="text-2xl font-bold text-slate-800 dark:text-white mt-0.5">-- pkt</h3>
+                        </div>
+                    </div>
+
+                    <div class="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-sm flex items-center gap-4">
+                        <div class="w-12 h-12 rounded-xl bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center justify-center text-xl">
+                            <i class="fa-solid fa-paper-plane"></i>
+                        </div>
+                        <div>
+                            <p class="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Wysłane dzisiaj</p>
+                            <h3 id="statTodaySent" class="text-2xl font-bold text-slate-800 dark:text-white mt-0.5">0</h3>
+                        </div>
+                    </div>
+
+                    <div class="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-sm flex items-center gap-4">
+                        <div class="w-12 h-12 rounded-xl bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 flex items-center justify-center text-xl">
+                            <i class="fa-solid fa-receipt"></i>
+                        </div>
+                        <div>
+                            <p class="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Łączny koszt</p>
+                            <h3 id="statTotalSpent" class="text-2xl font-bold text-slate-800 dark:text-white mt-0.5">0.00 pkt</h3>
+                        </div>
+                    </div>
+
+                    <div class="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-sm flex items-center gap-4">
+                        <div class="w-12 h-12 rounded-xl bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 flex items-center justify-center text-xl">
+                            <i class="fa-solid fa-circle-check"></i>
+                        </div>
+                        <div>
+                            <p class="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Skuteczność</p>
+                            <h3 id="statSuccessRate" class="text-2xl font-bold text-slate-800 dark:text-white mt-0.5">100%</h3>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Quick Send & Recent Activity Grid -->
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <!-- Quick SMS Widget -->
+                    <div class="lg:col-span-1 bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col justify-between">
+                        <div>
+                            <div class="flex items-center justify-between mb-4">
+                                <h2 class="font-bold text-base flex items-center gap-2">
+                                    <i class="fa-solid fa-bolt text-amber-500"></i> Szybki SMS
+                                </h2>
+                                <span class="text-xs text-slate-400">Pojedyncza wysyłka</span>
+                            </div>
+
+                            <form id="quickSendForm" onsubmit="handleQuickSend(event)" class="space-y-3">
+                                <div>
+                                    <label class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Numer telefonu</label>
+                                    <input type="text" id="quickTo" placeholder="np. 48500100200" required class="w-full px-3.5 py-2 text-sm rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700/50 focus:ring-2 focus:ring-blue-500 outline-none">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Treść wiadomości</label>
+                                    <textarea id="quickMessage" rows="3" placeholder="Wpisz treść szybkiego SMS..." required class="w-full px-3.5 py-2 text-sm rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700/50 focus:ring-2 focus:ring-blue-500 outline-none resize-none"></textarea>
+                                </div>
+                                <button type="submit" id="btnQuickSend" class="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-medium text-sm transition-colors flex items-center justify-center gap-2 shadow-sm">
+                                    <i class="fa-solid fa-paper-plane"></i> Wyślij szybki SMS
+                                </button>
+                            </form>
+                        </div>
+
+                        <div class="mt-4 pt-4 border-t border-slate-100 dark:border-slate-700/50 flex items-center justify-between text-xs text-slate-500">
+                            <span>Więcej opcji (nadawca, szablony, masowe):</span>
+                            <button onclick="switchTab('sms-send')" class="text-blue-600 hover:underline font-medium">Otwórz edytor</button>
+                        </div>
+                    </div>
+
+                    <!-- Recent Activity List -->
+                    <div class="lg:col-span-2 bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col">
+                        <div class="flex items-center justify-between mb-4">
+                            <h2 class="font-bold text-base flex items-center gap-2">
+                                <i class="fa-solid fa-clock-rotate-left text-blue-500"></i> Ostatnie operacje
+                            </h2>
+                            <button onclick="switchTab('history')" class="text-xs text-blue-600 hover:underline font-medium">Zobacz pełną historię</button>
+                        </div>
+
+                        <div class="flex-1 overflow-x-auto">
+                            <table class="w-full text-left text-sm">
+                                <thead class="text-xs text-slate-400 uppercase border-b border-slate-200 dark:border-slate-700">
+                                    <tr>
+                                        <th class="py-2.5 px-3">Data</th>
+                                        <th class="py-2.5 px-3">Typ</th>
+                                        <th class="py-2.5 px-3">Odbiorcy</th>
+                                        <th class="py-2.5 px-3">Status</th>
+                                        <th class="py-2.5 px-3 text-right">Koszt</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="recentHistoryTable" class="divide-y divide-slate-100 dark:divide-slate-700/50">
+                                    <tr>
+                                        <td colspan="5" class="py-6 text-center text-slate-400 text-xs">Ładowanie ostatnich operacji...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 2: SMS SEND CENTER -->
+            <section id="tab-sms-send" class="tab-content hidden space-y-6">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h2 class="text-xl font-bold text-slate-800 dark:text-white">Centrum Wysyłki SMS</h2>
+                        <p class="text-xs text-slate-500 mt-0.5">Wysyłaj pojedyncze lub grupowe wiadomości z pełną personalizacją.</p>
+                    </div>
+                    <!-- Template quick loader -->
+                    <div class="flex items-center gap-2">
+                        <label class="text-xs text-slate-500 font-medium">Wstaw szablon:</label>
+                        <select id="smsTemplateSelect" onchange="applySmsTemplate(this.value)" class="text-xs px-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700 outline-none">
+                            <option value="">-- Wybierz szablon --</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <!-- SMS Form -->
+                    <div class="lg:col-span-2 bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-5">
+                        <form id="smsSendForm" onsubmit="handleSendSms(event)" class="space-y-4">
+                            <!-- Recipient numbers -->
+                            <div>
+                                <div class="flex items-center justify-between mb-1">
+                                    <label class="block text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">Odbiorcy (numery telefonów)</label>
+                                    <span id="recipientCountBadge" class="text-xs text-blue-600 font-medium">0 numerów</span>
+                                </div>
+                                <textarea id="smsRecipients" rows="2" placeholder="Wpisz numery oddzielone przecinkami, spacjami lub w nowej linii (np. 48500100200, 48600700800)" required oninput="updateRecipientCount()" class="w-full px-3.5 py-2.5 text-sm rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700/50 focus:ring-2 focus:ring-blue-500 outline-none custom-scrollbar"></textarea>
+                                <p class="text-xs text-slate-400 mt-1">Obsługiwany format: 48XXXXXXXXX, +48XXXXXXXXX, lub 9 cyfr dla numerów PL.</p>
+                            </div>
+
+                            <!-- Sender Name (Sender ID) -->
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-xs font-semibold uppercase text-slate-500 dark:text-slate-400 mb-1">Nazwa nadawcy (Sender ID)</label>
+                                    <select id="smsSenderSelect" class="w-full px-3.5 py-2 text-sm rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700 outline-none">
+                                        <option value="">Pole nadawcy (domyślne 2Way)</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold uppercase text-slate-500 dark:text-slate-400 mb-1">Planowanie daty wysyłki (opcjonalnie)</label>
+                                    <input type="datetime-local" id="smsScheduledDate" class="w-full px-3.5 py-2 text-sm rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700 outline-none">
+                                </div>
+                            </div>
+
+                            <!-- Message Body & Realtime Counter -->
+                            <div>
+                                <div class="flex items-center justify-between mb-1">
+                                    <label class="block text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">Treść wiadomości</label>
+                                    <div class="flex items-center gap-3 text-xs">
+                                        <span id="charCounter" class="font-bold text-slate-700 dark:text-slate-200">0 / 160 zn.</span>
+                                        <span id="partsBadge" class="px-2 py-0.5 bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 rounded font-semibold">1 SMS</span>
+                                    </div>
+                                </div>
+                                <textarea id="smsMessageText" rows="5" placeholder="Wpisz treść wiadomości SMS..." required oninput="calculateSmsMetrics()" class="w-full px-3.5 py-2.5 text-sm rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700/50 focus:ring-2 focus:ring-blue-500 outline-none resize-y custom-scrollbar"></textarea>
+                                
+                                <!-- Encoding Warning Banner -->
+                                <div id="unicodeWarning" class="hidden mt-2 p-2.5 rounded-xl bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300 text-xs flex items-center justify-between">
+                                    <div class="flex items-center gap-2">
+                                        <i class="fa-solid fa-triangle-exclamation text-amber-500"></i>
+                                        <span>Wiadomość zawiera znaki <b>Unicode (np. polskie znaki: ą, ę, ć)</b>. Limit 1 SMS wynosi 70 znaków.</span>
+                                    </div>
+                                    <button type="button" onclick="normalizeMessageChars()" class="px-2.5 py-1 bg-amber-200 dark:bg-amber-800 text-amber-900 dark:text-amber-100 rounded-lg font-medium hover:bg-amber-300 transition-colors">
+                                        Usuń polskie znaki
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Advanced Switches -->
+                            <div class="p-4 rounded-xl bg-slate-50 dark:bg-slate-700/30 border border-slate-200 dark:border-slate-700 grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                <label class="flex items-center gap-2 text-xs font-medium cursor-pointer">
+                                    <input type="checkbox" id="chkFlash" class="rounded text-blue-600 focus:ring-blue-500">
+                                    <span>Flash SMS</span>
+                                </label>
+                                <label class="flex items-center gap-2 text-xs font-medium cursor-pointer">
+                                    <input type="checkbox" id="chkFast" class="rounded text-blue-600 focus:ring-blue-500">
+                                    <span>Fast SMS (Priorytet)</span>
+                                </label>
+                                <label class="flex items-center gap-2 text-xs font-medium cursor-pointer">
+                                    <input type="checkbox" id="chkNormalize" class="rounded text-blue-600 focus:ring-blue-500">
+                                    <span>Autokonwersja (Normalize)</span>
+                                </label>
+                                <label class="flex items-center gap-2 text-xs font-medium cursor-pointer text-amber-600 dark:text-amber-400">
+                                    <input type="checkbox" id="chkTest" class="rounded text-amber-600 focus:ring-amber-500">
+                                    <span>Tryb testowy (0 pkt)</span>
+                                </label>
+                            </div>
+
+                            <!-- Submit Button -->
+                            <div class="flex items-center justify-end gap-3 pt-2">
+                                <button type="reset" class="px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 font-medium text-sm transition-colors">
+                                    Wyczyść formularz
+                                </button>
+                                <button type="submit" id="btnSendSmsSubmit" class="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold text-sm transition-colors shadow-md shadow-blue-500/20 flex items-center gap-2">
+                                    <i class="fa-solid fa-paper-plane"></i> Wyślij wiadomość
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- Live Phone Preview Card -->
+                    <div class="lg:col-span-1 flex flex-col items-center">
+                        <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Podgląd na żywo w telefonie</p>
+                        <!-- Phone Frame -->
+                        <div class="w-full max-w-[280px] bg-slate-900 rounded-[38px] p-3 shadow-2xl border-4 border-slate-800 ring-1 ring-slate-700">
+                            <!-- Phone speaker & notch -->
+                            <div class="h-4 flex items-center justify-center mb-2">
+                                <div class="w-16 h-3 bg-slate-800 rounded-full"></div>
+                            </div>
+                            <!-- Phone screen -->
+                            <div class="bg-slate-100 dark:bg-slate-800 rounded-[28px] h-[360px] flex flex-col justify-between p-3 overflow-hidden">
+                                <!-- Chat header -->
+                                <div class="border-b border-slate-200 dark:border-slate-700 pb-2 text-center">
+                                    <div id="previewSender" class="font-bold text-xs text-slate-800 dark:text-white">SMSAPI</div>
+                                    <div class="text-[10px] text-slate-400">Dzisiaj, 12:00</div>
+                                </div>
+                                <!-- Chat bubble -->
+                                <div class="flex-1 py-3 overflow-y-auto custom-scrollbar">
+                                    <div class="bg-blue-600 text-white text-xs p-3 rounded-2xl rounded-tl-sm max-w-[90%] shadow-sm break-words" id="previewBubble">
+                                        Wpisz treść wiadomości, aby zobaczyć podgląd na żywo...
+                                    </div>
+                                </div>
+                                <!-- Bottom simulated bar -->
+                                <div class="pt-2 border-t border-slate-200 dark:border-slate-700 text-[10px] text-center text-slate-400">
+                                    Wiadomość SMS/MMS
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 3: BULK SEND FROM CSV -->
+            <section id="tab-bulk-csv" class="tab-content hidden space-y-6">
+                <div>
+                    <h2 class="text-xl font-bold text-slate-800 dark:text-white">Wysyłka masowa z pliku CSV / Excel</h2>
+                    <p class="text-xs text-slate-500 mt-0.5">Wgraj plik z odbiorcami i wyślij spersonalizowane wiadomości z dynamicznymi zmiennymi.</p>
+                </div>
+
+                <!-- Dropzone Card -->
+                <div class="bg-white dark:bg-slate-800 p-6 rounded-2xl border-2 border-dashed border-slate-300 dark:border-slate-700 text-center hover:border-blue-500 transition-colors">
+                    <input type="file" id="csvFileInput" accept=".csv, .txt, .xlsx" class="hidden" onchange="handleCsvFileUpload(event)">
+                    <div onclick="document.getElementById('csvFileInput').click()" class="cursor-pointer space-y-2 py-4">
+                        <div class="w-16 h-16 mx-auto rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center justify-center text-2xl">
+                            <i class="fa-solid fa-cloud-arrow-up"></i>
+                        </div>
+                        <h3 class="font-semibold text-base">Przeciągnij plik CSV tutaj lub kliknij, aby wybrać</h3>
+                        <p class="text-xs text-slate-400">Obsługiwane formaty: .CSV (rozdzielany przecinkami lub średnikami) z nagłówkami kolumn</p>
+                    </div>
+                </div>
+
+                <!-- Mapping and Preview Area -->
+                <div id="csvWorkspace" class="hidden space-y-6">
+                    <div class="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-4">
+                        <h3 class="font-bold text-base flex items-center gap-2">
+                            <i class="fa-solid fa-sliders text-blue-500"></i> Konfiguracja szablonu i kolumn
+                        </h3>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-xs font-semibold uppercase text-slate-500 mb-1">Kolumna z numerem telefonu</label>
+                                <select id="csvPhoneColumn" onchange="updateCsvMergedPreview()" class="w-full px-3.5 py-2 text-sm rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700 outline-none"></select>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold uppercase text-slate-500 mb-1">Dostępne zmienne z nagłówków</label>
+                                <div id="csvPlaceholderPills" class="flex flex-wrap gap-1.5 p-2 rounded-xl bg-slate-50 dark:bg-slate-700/40 border border-slate-200 dark:border-slate-700 text-xs">
+                                    <!-- Pills added dynamically -->
+                                </div>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-semibold uppercase text-slate-500 mb-1">Szablon wiadomości masowej (kliknij w zmienną powyżej, aby wstawić)</label>
+                            <textarea id="csvMessageTemplate" rows="3" oninput="updateCsvMergedPreview()" placeholder="Wpisz treść ze zmiennymi np: Witaj [%imie%]! Twoje zamówienie [%zamowienie%] zostało wysłane." class="w-full px-3.5 py-2.5 text-sm rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700/50 outline-none"></textarea>
+                        </div>
+
+                        <!-- Options row -->
+                        <div class="flex flex-wrap items-center justify-between gap-4 pt-2">
+                            <div class="flex items-center gap-4">
+                                <label class="flex items-center gap-2 text-xs font-medium cursor-pointer">
+                                    <input type="checkbox" id="csvChkNormalize" class="rounded text-blue-600">
+                                    <span>Usuń polskie znaki (Normalize)</span>
+                                </label>
+                                <label class="flex items-center gap-2 text-xs font-medium cursor-pointer text-amber-600">
+                                    <input type="checkbox" id="csvChkTest" class="rounded text-amber-600">
+                                    <span>Tryb testowy (symulacja)</span>
+                                </label>
+                            </div>
+
+                            <button onclick="startBulkCsvSending()" id="btnStartBulk" class="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-sm shadow-md transition-all flex items-center gap-2">
+                                <i class="fa-solid fa-play"></i> Uruchom masową wysyłkę (<span id="csvRowCountBadge">0</span> rekordów)
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Progress Bar (shown when sending) -->
+                    <div id="csvProgressCard" class="hidden bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-3">
+                        <div class="flex items-center justify-between text-sm font-semibold">
+                            <span>Postęp wysyłki masowej...</span>
+                            <span id="csvProgressPercent">0%</span>
+                        </div>
+                        <div class="w-full bg-slate-200 dark:bg-slate-700 h-3 rounded-full overflow-hidden">
+                            <div id="csvProgressBar" class="bg-emerald-500 h-3 rounded-full transition-all duration-300" style="width: 0%"></div>
+                        </div>
+                        <div class="flex justify-between text-xs text-slate-500">
+                            <span id="csvSentCounter">Wysłano: 0</span>
+                            <span id="csvFailedCounter">Błędów: 0</span>
+                        </div>
+                    </div>
+
+                    <!-- Data Preview Table -->
+                    <div class="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
+                        <h3 class="font-bold text-base mb-3 flex items-center gap-2">
+                            <i class="fa-solid fa-table text-blue-500"></i> Podgląd danych i wygenerowanych wiadomości (pierwsze 10 wierszy)
+                        </h3>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left text-xs">
+                                <thead id="csvPreviewThead" class="bg-slate-50 dark:bg-slate-700/50 uppercase font-semibold text-slate-500"></thead>
+                                <tbody id="csvPreviewTbody" class="divide-y divide-slate-100 dark:divide-slate-700/50"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 4: 2FA / MFA CODES -->
+            <section id="tab-mfa-verify" class="tab-content hidden space-y-6">
+                <div>
+                    <h2 class="text-xl font-bold text-slate-800 dark:text-white">Uwierzytelnianie dwuskładnikowe (2FA / MFA)</h2>
+                    <p class="text-xs text-slate-500 mt-0.5">Generuj i wysyłaj jednorazowe kody SMS OTP oraz weryfikuj ich poprawność.</p>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- Send MFA Code -->
+                    <div class="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-4">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-900/40 text-indigo-600 flex items-center justify-center text-lg">
+                                <i class="fa-solid fa-key"></i>
+                            </div>
+                            <div>
+                                <h3 class="font-bold text-base">1. Wyślij kod weryfikacyjny (OTP)</h3>
+                                <p class="text-xs text-slate-400">System SMSAPI wygeneruje unikalny kod</p>
+                            </div>
+                        </div>
+
+                        <form onsubmit="handleSendMfa(event)" class="space-y-3">
+                            <div>
+                                <label class="block text-xs font-semibold uppercase text-slate-500 mb-1">Numer telefonu</label>
+                                <input type="text" id="mfaSendPhone" placeholder="np. 48500100200" required class="w-full px-3.5 py-2 text-sm rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700 outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold uppercase text-slate-500 mb-1">Szablon treści (musi zawierać [%code%])</label>
+                                <input type="text" id="mfaSendContent" value="Twój kod weryfikacyjny to: [%code%]. Nie podawaj go nikomu." required class="w-full px-3.5 py-2 text-sm rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700 outline-none">
+                            </div>
+                            <label class="flex items-center gap-2 text-xs font-medium cursor-pointer">
+                                <input type="checkbox" id="mfaFast" checked class="rounded text-indigo-600">
+                                <span>Wysyłka priorytetowa (Fast SMS)</span>
+                            </label>
+                            <button type="submit" id="btnSendMfa" class="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold text-sm transition-colors flex items-center justify-center gap-2">
+                                <i class="fa-solid fa-paper-plane"></i> Wygeneruj i wyślij kod 2FA
+                            </button>
+                        </form>
+                    </div>
+
+                    <!-- Verify MFA Code -->
+                    <div class="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-4">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-900/40 text-emerald-600 flex items-center justify-center text-lg">
+                                <i class="fa-solid fa-circle-check"></i>
+                            </div>
+                            <div>
+                                <h3 class="font-bold text-base">2. Weryfikuj wprowadzony kod</h3>
+                                <p class="text-xs text-slate-400">Sprawdź czy kod podany przez użytkownika jest ważny</p>
+                            </div>
+                        </div>
+
+                        <form onsubmit="handleVerifyMfa(event)" class="space-y-3">
+                            <div>
+                                <label class="block text-xs font-semibold uppercase text-slate-500 mb-1">Numer telefonu</label>
+                                <input type="text" id="mfaVerifyPhone" placeholder="np. 48500100200" required class="w-full px-3.5 py-2 text-sm rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700 outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold uppercase text-slate-500 mb-1">Wprowadzony kod OTP</label>
+                                <input type="text" id="mfaVerifyCode" placeholder="np. 493021" required class="w-full px-3.5 py-2 text-sm rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700 outline-none font-mono text-center tracking-widest text-lg font-bold">
+                            </div>
+                            <button type="submit" id="btnVerifyMfa" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-semibold text-sm transition-colors flex items-center justify-center gap-2">
+                                <i class="fa-solid fa-check-double"></i> Sprawdź poprawność kodu
+                            </button>
+                        </form>
+
+                        <div id="mfaResultBox" class="hidden p-4 rounded-xl text-center text-sm font-semibold"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 5: VMS & MMS -->
+            <section id="tab-vms-mms" class="tab-content hidden space-y-6">
+                <div>
+                    <h2 class="text-xl font-bold text-slate-800 dark:text-white">Wiadomości głosowe VMS i multimedialne MMS</h2>
+                    <p class="text-xs text-slate-500 mt-0.5">Wysyłaj wiadomości odtwarzane głosem lektora (Text-To-Speech) lub wiadomości graficzne.</p>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- VMS Box -->
+                    <div class="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-4">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-xl bg-purple-50 dark:bg-purple-900/40 text-purple-600 flex items-center justify-center text-lg">
+                                <i class="fa-solid fa-microphone-lines"></i>
+                            </div>
+                            <div>
+                                <h3 class="font-bold text-base">Wiadomość głosowa VMS (Syntezator mowy)</h3>
+                                <p class="text-xs text-slate-400">System zadzwoni do odbiorcy i odczyta komunikat</p>
+                            </div>
+                        </div>
+
+                        <form onsubmit="handleSendVms(event)" class="space-y-3">
+                            <div>
+                                <label class="block text-xs font-semibold uppercase text-slate-500 mb-1">Numer telefonu</label>
+                                <input type="text" id="vmsTo" placeholder="np. 48500100200" required class="w-full px-3.5 py-2 text-sm rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700 outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold uppercase text-slate-500 mb-1">Wybór lektora (TTS)</label>
+                                <select id="vmsLector" class="w-full px-3.5 py-2 text-sm rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700 outline-none">
+                                    <option value="ewa">Ewa (Głos żeński, naturalny PL)</option>
+                                    <option value="jacek">Jacek (Głos męski PL)</option>
+                                    <option value="jan">Jan (Głos męski PL)</option>
+                                    <option value="maja">Maja (Głos żeński PL)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold uppercase text-slate-500 mb-1">Treść do przeczytania przez lektora</label>
+                                <textarea id="vmsText" rows="3" placeholder="Wpisz treść, którą lektor przeczyta odbiorcy po odebraniu połączenia..." required class="w-full px-3.5 py-2 text-sm rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700 outline-none"></textarea>
+                            </div>
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block text-xs text-slate-500 mb-1">Liczba prób połączenia</label>
+                                    <select id="vmsTries" class="w-full px-3 py-1.5 text-xs rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700 outline-none">
+                                        <option value="1">1 próba</option>
+                                        <option value="2">2 próby</option>
+                                        <option value="3">3 próby</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-xs text-slate-500 mb-1">Odstęp między próbami</label>
+                                    <select id="vmsInterval" class="w-full px-3 py-1.5 text-xs rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700 outline-none">
+                                        <option value="300">5 minut</option>
+                                        <option value="600">10 minut</option>
+                                        <option value="1800">30 minut</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <button type="submit" id="btnSendVms" class="w-full py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-semibold text-sm transition-colors flex items-center justify-center gap-2">
+                                <i class="fa-solid fa-phone-volume"></i> Zleć połączenie głosowe VMS
+                            </button>
+                        </form>
+                    </div>
+
+                    <!-- MMS Box -->
+                    <div class="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-4">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-xl bg-pink-50 dark:bg-pink-900/40 text-pink-600 flex items-center justify-center text-lg">
+                                <i class="fa-solid fa-image"></i>
+                            </div>
+                            <div>
+                                <h3 class="font-bold text-base">Wiadomość multimedialna MMS</h3>
+                                <p class="text-xs text-slate-400">Wysyłka wiadomości ze strukturą SMIL</p>
+                            </div>
+                        </div>
+
+                        <form onsubmit="handleSendMms(event)" class="space-y-3">
+                            <div>
+                                <label class="block text-xs font-semibold uppercase text-slate-500 mb-1">Numer telefonu</label>
+                                <input type="text" id="mmsTo" placeholder="np. 48500100200" required class="w-full px-3.5 py-2 text-sm rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700 outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold uppercase text-slate-500 mb-1">Temat wiadomości MMS</label>
+                                <input type="text" id="mmsSubject" placeholder="Temat MMS" required class="w-full px-3.5 py-2 text-sm rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700 outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold uppercase text-slate-500 mb-1">Treść / Format SMIL</label>
+                                <textarea id="mmsSmil" rows="4" placeholder="Wpisz treść lub znacznik SMIL dla MMS..." required class="w-full px-3.5 py-2 text-sm rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700 outline-none"></textarea>
+                            </div>
+                            <button type="submit" id="btnSendMms" class="w-full py-2.5 bg-pink-600 hover:bg-pink-700 text-white rounded-xl font-semibold text-sm transition-colors flex items-center justify-center gap-2">
+                                <i class="fa-solid fa-paper-plane"></i> Wyślij MMS
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 6: CONTACTS & GROUPS -->
+            <section id="tab-contacts" class="tab-content hidden space-y-6">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h2 class="text-xl font-bold text-slate-800 dark:text-white">Kontakty i Grupy SMSAPI</h2>
+                        <p class="text-xs text-slate-500 mt-0.5">Zarządzaj swoją książką adresową pobieraną z konta SMSAPI.</p>
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="fetchContacts()" class="px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-xl text-xs font-medium hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-1.5">
+                            <i class="fa-solid fa-arrows-rotate"></i> Odśwież listę
+                        </button>
+                        <button onclick="openAddContactModal()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow">
+                            <i class="fa-solid fa-user-plus"></i> Dodaj kontakt
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Contacts Table Card -->
+                <div class="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-4">
+                    <div class="flex items-center justify-between">
+                        <input type="text" id="contactSearchInput" placeholder="Szukaj kontaktu po nazwisku lub numerze..." oninput="filterContactsTable()" class="w-72 px-3.5 py-1.5 text-xs rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700 outline-none">
+                        <span id="contactsCountBadge" class="text-xs text-slate-400">0 kontaktów</span>
+                    </div>
+
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-xs">
+                            <thead class="bg-slate-50 dark:bg-slate-700/50 uppercase font-semibold text-slate-500">
+                                <tr>
+                                    <th class="py-2.5 px-3">Imię i Nazwisko</th>
+                                    <th class="py-2.5 px-3">Numer telefonu</th>
+                                    <th class="py-2.5 px-3">E-mail</th>
+                                    <th class="py-2.5 px-3">Miasto</th>
+                                    <th class="py-2.5 px-3 text-right">Akcje</th>
+                                </tr>
+                            </thead>
+                            <tbody id="contactsTableBody" class="divide-y divide-slate-100 dark:divide-slate-700/50">
+                                <tr>
+                                    <td colspan="5" class="py-6 text-center text-slate-400">Kliknij "Odśwież listę", aby załadować kontakty...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 7: SHORTURL & HLR -->
+            <section id="tab-shorturl-hlr" class="tab-content hidden space-y-6">
+                <div>
+                    <h2 class="text-xl font-bold text-slate-800 dark:text-white">Skracacz linków (idz.do) oraz Weryfikacja HLR</h2>
+                    <p class="text-xs text-slate-500 mt-0.5">Twórz krótkie linki zliczające kliknięcia oraz sprawdzaj stan numerów w sieci komórkowej.</p>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- Short URL Creator -->
+                    <div class="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-4">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-xl bg-cyan-50 dark:bg-cyan-900/40 text-cyan-600 flex items-center justify-center text-lg">
+                                <i class="fa-solid fa-link"></i>
+                            </div>
+                            <div>
+                                <h3 class="font-bold text-base">Generuj skrócony link (idz.do)</h3>
+                                <p class="text-xs text-slate-400">Śledź kliknięcia użytkowników w Twoich SMS-ach</p>
+                            </div>
+                        </div>
+
+                        <form onsubmit="handleCreateShortUrl(event)" class="space-y-3">
+                            <div>
+                                <label class="block text-xs font-semibold uppercase text-slate-500 mb-1">Docelowy adres URL</label>
+                                <input type="url" id="shortUrlTarget" placeholder="https://twojastrona.pl/oferta-specjalna" required class="w-full px-3.5 py-2 text-sm rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700 outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold uppercase text-slate-500 mb-1">Etykieta / Nazwa linku (opcjonalnie)</label>
+                                <input type="text" id="shortUrlName" placeholder="np. Kampania Jesień 2026" class="w-full px-3.5 py-2 text-sm rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700 outline-none">
+                            </div>
+                            <button type="submit" id="btnCreateShortUrl" class="w-full py-2.5 bg-cyan-600 hover:bg-cyan-700 text-white rounded-xl font-semibold text-sm transition-colors flex items-center justify-center gap-2">
+                                <i class="fa-solid fa-scissors"></i> Skróć link do idz.do
+                            </button>
+                        </form>
+
+                        <div id="shortUrlResult" class="hidden p-3 rounded-xl bg-cyan-50 dark:bg-cyan-900/30 border border-cyan-200 dark:border-cyan-800 text-xs text-cyan-900 dark:text-cyan-200"></div>
+                    </div>
+
+                    <!-- HLR Lookup -->
+                    <div class="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-4">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-xl bg-amber-50 dark:bg-amber-900/40 text-amber-600 flex items-center justify-center text-lg">
+                                <i class="fa-solid fa-tower-cell"></i>
+                            </div>
+                            <div>
+                                <h3 class="font-bold text-base">Weryfikacja numeru w sieci (HLR Lookup)</h3>
+                                <p class="text-xs text-slate-400">Sprawdź czy numer jest aktywny i w jakiej sieci się znajduje</p>
+                            </div>
+                        </div>
+
+                        <form onsubmit="handleHlrCheck(event)" class="space-y-3">
+                            <div>
+                                <label class="block text-xs font-semibold uppercase text-slate-500 mb-1">Numer telefonu do sprawdzenia</label>
+                                <input type="text" id="hlrNumber" placeholder="np. 48500100200" required class="w-full px-3.5 py-2 text-sm rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700 outline-none">
+                            </div>
+                            <button type="submit" id="btnCheckHlr" class="w-full py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl font-semibold text-sm transition-colors flex items-center justify-center gap-2">
+                                <i class="fa-solid fa-magnifying-glass"></i> Sprawdź numer (HLR)
+                            </button>
+                        </form>
+
+                        <div id="hlrResultBox" class="hidden p-4 rounded-xl bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-700 text-xs space-y-1"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 8: BLACKLIST -->
+            <section id="tab-blacklist" class="tab-content hidden space-y-6">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h2 class="text-xl font-bold text-slate-800 dark:text-white">Czarna lista numerów (Opt-out)</h2>
+                        <p class="text-xs text-slate-500 mt-0.5">Numery na czarnej liście zostaną automatycznie pominięte przy wysyłce.</p>
+                    </div>
+                    <button onclick="fetchBlacklist()" class="px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-xl text-xs font-medium hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-1.5">
+                        <i class="fa-solid fa-arrows-rotate"></i> Odśwież listę
+                    </button>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <!-- Add number to blacklist form -->
+                    <div class="md:col-span-1 bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-4">
+                        <h3 class="font-bold text-base flex items-center gap-2">
+                            <i class="fa-solid fa-plus-circle text-rose-500"></i> Dodaj do czarnej listy
+                        </h3>
+                        <form onsubmit="handleAddToBlacklist(event)" class="space-y-3">
+                            <div>
+                                <label class="block text-xs font-semibold uppercase text-slate-500 mb-1">Numer telefonu</label>
+                                <input type="text" id="blacklistPhone" placeholder="np. 48500100200" required class="w-full px-3.5 py-2 text-sm rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700 outline-none">
+                            </div>
+                            <button type="submit" id="btnAddBlacklist" class="w-full py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-semibold text-sm transition-colors flex items-center justify-center gap-2">
+                                <i class="fa-solid fa-ban"></i> Zablokuj numer
+                            </button>
+                        </form>
+                    </div>
+
+                    <!-- Blacklist table -->
+                    <div class="md:col-span-2 bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
+                        <h3 class="font-bold text-base mb-3">Zablokowane numery</h3>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left text-xs">
+                                <thead class="bg-slate-50 dark:bg-slate-700/50 uppercase font-semibold text-slate-500">
+                                    <tr>
+                                        <th class="py-2.5 px-3">Numer telefonu</th>
+                                        <th class="py-2.5 px-3">Data dodania</th>
+                                        <th class="py-2.5 px-3 text-right">Akcja</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="blacklistTableBody" class="divide-y divide-slate-100 dark:divide-slate-700/50">
+                                    <tr>
+                                        <td colspan="3" class="py-6 text-center text-slate-400">Brak zablokowanych numerów lub załaduj listę...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 9: HISTORY & LOGS -->
+            <section id="tab-history" class="tab-content hidden space-y-6">
+                <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                    <div>
+                        <h2 class="text-xl font-bold text-slate-800 dark:text-white">Historia i Raporty Wysyłek</h2>
+                        <p class="text-xs text-slate-500 mt-0.5">Kompletny dziennik wszystkich zleceń wysyłki wraz z kosztami i statusami.</p>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <a href="/api/history/export" class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow transition-colors">
+                            <i class="fa-solid fa-file-export"></i> Eksportuj do CSV
+                        </a>
+                        <button onclick="confirmClearHistory()" class="px-3.5 py-2 border border-rose-300 dark:border-rose-800 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/30 rounded-xl text-xs font-semibold transition-colors flex items-center gap-1.5">
+                            <i class="fa-solid fa-trash"></i> Wyczyść historię
+                        </button>
+                    </div>
+                </div>
+
+                <div class="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-4">
+                    <!-- Filters row -->
+                    <div class="flex flex-wrap items-center gap-3">
+                        <input type="text" id="historySearch" placeholder="Szukaj odbiorcy, treści lub nadawcy..." oninput="fetchHistory()" class="flex-1 min-w-[200px] px-3.5 py-1.5 text-xs rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700 outline-none">
+                        <select id="historyTypeFilter" onchange="fetchHistory()" class="px-3.5 py-1.5 text-xs rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700 outline-none">
+                            <option value="">Wszystkie typy</option>
+                            <option value="SMS">SMS standardowy</option>
+                            <option value="SMS_FLASH">SMS Flash</option>
+                            <option value="SMS_FAST">SMS Fast (Priorytet)</option>
+                            <option value="MFA">MFA / 2FA</option>
+                            <option value="VMS">VMS Głosowy</option>
+                            <option value="MMS">MMS</option>
+                        </select>
+                        <button onclick="fetchHistory()" class="px-3 py-1.5 bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300 rounded-xl text-xs font-semibold">
+                            <i class="fa-solid fa-filter"></i> Filtruj
+                        </button>
+                    </div>
+
+                    <!-- History Table -->
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-xs">
+                            <thead class="bg-slate-50 dark:bg-slate-700/50 uppercase font-semibold text-slate-500">
+                                <tr>
+                                    <th class="py-2.5 px-3">Data i czas</th>
+                                    <th class="py-2.5 px-3">Typ</th>
+                                    <th class="py-2.5 px-3">Nadawca</th>
+                                    <th class="py-2.5 px-3">Odbiorcy</th>
+                                    <th class="py-2.5 px-3">Treść wiadomości</th>
+                                    <th class="py-2.5 px-3">Status</th>
+                                    <th class="py-2.5 px-3 text-right">Koszt</th>
+                                </tr>
+                            </thead>
+                            <tbody id="historyTableBody" class="divide-y divide-slate-100 dark:divide-slate-700/50">
+                                <tr>
+                                    <td colspan="7" class="py-8 text-center text-slate-400">Ładowanie historii...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 10: SETTINGS & API CONFIG -->
+            <section id="tab-settings" class="tab-content hidden space-y-6">
+                <div>
+                    <h2 class="text-xl font-bold text-slate-800 dark:text-white">Ustawienia & Token SMSAPI</h2>
+                    <p class="text-xs text-slate-500 mt-0.5">Skonfiguruj połączenie z Twoim kontem na platformie SMSAPI.</p>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- Credentials Card -->
+                    <div class="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-4">
+                        <h3 class="font-bold text-base flex items-center gap-2">
+                            <i class="fa-solid fa-key text-blue-500"></i> Dane dostępowe API
+                        </h3>
+
+                        <form onsubmit="handleSaveConfig(event)" class="space-y-4">
+                            <div>
+                                <label class="block text-xs font-semibold uppercase text-slate-500 mb-1">Platforma SMSAPI</label>
+                                <select id="cfgDomain" class="w-full px-3.5 py-2 text-sm rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700 outline-none">
+                                    <option value="https://api.smsapi.pl/">SMSAPI Polska (smsapi.pl)</option>
+                                    <option value="https://api.smsapi.com/">SMSAPI International (smsapi.com)</option>
+                                    <option value="https://api.smsapi.bg/">SMSAPI Bułgaria (smsapi.bg)</option>
+                                    <option value="https://api.smsapi.se/">SMSAPI Szwecja (smsapi.se)</option>
+                                </select>
+                            </div>
+
+                            <div>
+                                <div class="flex items-center justify-between mb-1">
+                                    <label class="block text-xs font-semibold uppercase text-slate-500">OAuth Access Token</label>
+                                    <a href="https://ssl.smsapi.pl/react/api-tokens" target="_blank" class="text-xs text-blue-600 hover:underline">Wygeneruj token w panelu SMSAPI &rarr;</a>
+                                </div>
+                                <div class="relative">
+                                    <input type="password" id="cfgAccessToken" placeholder="Wklej swój token SMSAPI..." class="w-full px-3.5 py-2 text-sm rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700 outline-none pr-10">
+                                    <button type="button" onclick="toggleTokenVisibility()" class="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600">
+                                        <i id="tokenEyeIcon" class="fa-solid fa-eye"></i>
+                                    </button>
+                                </div>
+                                <p class="text-[11px] text-slate-400 mt-1">Twój token jest bezpiecznie przechowywany wyłącznie lokalnie w bazie aplikacji.</p>
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-semibold uppercase text-slate-500 mb-1">Domyślna nazwa nadawcy</label>
+                                <input type="text" id="cfgDefaultSender" placeholder="np. TwojaFirma" class="w-full px-3.5 py-2 text-sm rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700 outline-none">
+                            </div>
+
+                            <div class="flex gap-3 pt-2">
+                                <button type="button" onclick="testConnectionWithCurrentInputs()" class="px-4 py-2.5 rounded-xl border border-blue-600 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 text-sm font-semibold transition-colors flex items-center gap-2">
+                                    <i class="fa-solid fa-plug"></i> Testuj połączenie
+                                </button>
+                                <button type="submit" id="btnSaveConfig" class="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold transition-colors shadow">
+                                    Zapisz ustawienia
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- Registered Senders Card -->
+                    <div class="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-4">
+                        <div class="flex items-center justify-between">
+                            <h3 class="font-bold text-base flex items-center gap-2">
+                                <i class="fa-solid fa-signature text-emerald-500"></i> Zarejestrowane nazwy nadawcy
+                            </h3>
+                            <button onclick="fetchSenders()" class="text-xs text-blue-600 hover:underline">Odśwież</button>
+                        </div>
+
+                        <!-- Add Sender Name Form -->
+                        <form onsubmit="handleAddSender(event)" class="flex gap-2">
+                            <input type="text" id="newSenderName" placeholder="Nowa nazwa (max 11 znaków)" maxlength="11" required class="flex-1 px-3.5 py-1.5 text-xs rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700 outline-none">
+                            <button type="submit" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold">
+                                + Dodaj
+                            </button>
+                        </form>
+
+                        <!-- Senders list -->
+                        <div class="overflow-y-auto max-h-60 custom-scrollbar">
+                            <div id="sendersList" class="space-y-2 text-xs">
+                                <p class="text-slate-400 py-3 text-center">Wczytywanie nazw nadawcy...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+    <!-- Add Contact Modal Dialog -->
+    <div id="addContactModal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-700 space-y-4">
+            <div class="flex items-center justify-between">
+                <h3 class="font-bold text-base">Dodaj nowy kontakt</h3>
+                <button onclick="closeAddContactModal()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <form onsubmit="handleCreateContact(event)" class="space-y-3 text-xs">
+                <div>
+                    <label class="block font-semibold mb-1">Numer telefonu *</label>
+                    <input type="text" id="modalContactPhone" required placeholder="np. 48500100200" class="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700 outline-none">
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block font-semibold mb-1">Imię</label>
+                        <input type="text" id="modalContactFirst" placeholder="Jan" class="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700 outline-none">
+                    </div>
+                    <div>
+                        <label class="block font-semibold mb-1">Nazwisko</label>
+                        <input type="text" id="modalContactLast" placeholder="Kowalski" class="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700 outline-none">
+                    </div>
+                </div>
+                <div>
+                    <label class="block font-semibold mb-1">E-mail</label>
+                    <input type="email" id="modalContactEmail" placeholder="jan@example.com" class="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700 outline-none">
+                </div>
+                <div class="flex gap-2 pt-2">
+                    <button type="button" onclick="closeAddContactModal()" class="flex-1 py-2 border rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700">Anuluj</button>
+                    <button type="submit" class="flex-1 py-2 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700">Zapisz kontakt</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MAIN JAVASCRIPT APPLICATION LOGIC -->
+    <script>
+        // State variables
+        let appConfig = { is_configured: false, masked_token: '', domain: '', default_sender: '' };
+        let parsedCsvData = [];
+        let allContacts = [];
+        let savedTemplates = [];
+        let sendersList = [];
+
+        // Polish diacritics mapping for normalization
+        const plMap = {
+            'ą':'a', 'ć':'c', 'ę':'e', 'ł':'l', 'ń':'n', 'ó':'o', 'ś':'s', 'ź':'z', 'ż':'z',
+            'Ą':'A', 'Ć':'C', 'Ę':'E', 'Ł':'L', 'Ń':'N', 'Ó':'O', 'Ś':'S', 'Ź':'Z', 'Ż':'Z'
+        };
+
+        // GSM-7 Character Set
+        const gsm7Chars = "@£$¥èéùìòÇ\nØø\rÅåΔ_ΦΓΛΩΠΨΣΘΞ\x1bÆæßÉ !\"#¤%&'()*+,-./0123456789:;<=>?¡ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÑÜ`abcdefghijklmnopqrstuvwxyzäöñüà^{}\\[~]|€";
+
+        // Tab Switching
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(tab => tab.classList.add('hidden'));
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                btn.classList.remove('bg-blue-50', 'text-blue-600', 'dark:bg-blue-900/30', 'dark:text-blue-400');
+                btn.classList.add('text-slate-600', 'dark:text-slate-300');
+            });
+
+            const activeTab = document.getElementById(`tab-${tabId}`);
+            const activeNav = document.getElementById(`nav-${tabId}`);
+            if (activeTab) activeTab.classList.remove('hidden');
+            if (activeNav) {
+                activeNav.classList.remove('text-slate-600', 'dark:text-slate-300');
+                activeNav.classList.add('bg-blue-50', 'text-blue-600', 'dark:bg-blue-900/30', 'dark:text-blue-400');
+            }
+
+            // Lazy fetch data based on tab
+            if (tabId === 'history') fetchHistory();
+            if (tabId === 'contacts') fetchContacts();
+            if (tabId === 'blacklist') fetchBlacklist();
+            if (tabId === 'settings') { fetchConfig(); fetchSenders(); }
+        }
+
+        // Theme Toggle
+        function toggleDarkMode() {
+            const html = document.documentElement;
+            const icon = document.getElementById('themeIcon');
+            if (html.classList.contains('dark')) {
+                html.classList.remove('dark');
+                icon.classList.replace('fa-sun', 'fa-moon');
+                localStorage.setItem('theme', 'light');
+            } else {
+                html.classList.add('dark');
+                icon.classList.replace('fa-moon', 'fa-sun');
+                localStorage.setItem('theme', 'dark');
+            }
+        }
+
+        if (localStorage.getItem('theme') === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            document.documentElement.classList.add('dark');
+            document.getElementById('themeIcon')?.classList.replace('fa-moon', 'fa-sun');
+        }
+
+        // App Initialization
+        window.addEventListener('DOMContentLoaded', async () => {
+            await fetchConfig();
+            await fetchBalance();
+            await fetchStats();
+            await fetchRecentHistory();
+            await fetchSenders();
+            await fetchTemplates();
+        });
+
+        // Config & Connection Status
+        async function fetchConfig() {
+            try {
+                const res = await fetch('/api/config');
+                const data = await res.json();
+                appConfig = data;
+
+                const statusDot = document.getElementById('statusDot');
+                const statusText = document.getElementById('statusText');
+                const cfgDomain = document.getElementById('cfgDomain');
+                const cfgDefaultSender = document.getElementById('cfgDefaultSender');
+
+                if (cfgDomain) cfgDomain.value = data.domain || 'https://api.smsapi.pl/';
+                if (cfgDefaultSender) cfgDefaultSender.value = data.default_sender || '';
+
+                if (data.is_configured) {
+                    statusDot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-500';
+                    statusText.textContent = 'Połączono z SMSAPI';
+                } else {
+                    statusDot.className = 'w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse';
+                    statusText.textContent = 'Brak tokenu API';
+                }
+            } catch (err) {
+                console.error("Config fetch error:", err);
+            }
+        }
+
+        async function fetchBalance(showToast = false) {
+            try {
+                const res = await fetch('/api/balance');
+                const data = await res.json();
+                if (data.success) {
+                    const pts = `${Number(data.points).toFixed(2)} pkt`;
+                    document.getElementById('pointsBalance').textContent = pts;
+                    document.getElementById('statBalance').textContent = pts;
+                    if (showToast) {
+                        Swal.fire({ icon: 'success', title: 'Zaktualizowano saldo', text: `Dostępne środki: ${pts}`, timer: 1500, showConfirmButton: false });
+                    }
+                } else {
+                    document.getElementById('pointsBalance').textContent = '-- pkt';
+                }
+            } catch (e) {
+                console.warn("Balance check:", e);
+            }
+        }
+
+        async function fetchStats() {
+            try {
+                const res = await fetch('/api/stats');
+                const data = await res.json();
+                document.getElementById('statTodaySent').textContent = data.today_sent || 0;
+                document.getElementById('statTotalSpent').textContent = `${(data.total_points_spent || 0).toFixed(2)} pkt`;
+                document.getElementById('statSuccessRate').textContent = `${data.success_rate || 100}%`;
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        async function fetchRecentHistory() {
+            try {
+                const res = await fetch('/api/history?limit=5');
+                const data = await res.json();
+                const tbody = document.getElementById('recentHistoryTable');
+                if (!data.history || data.history.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="5" class="py-6 text-center text-slate-400 text-xs">Brak historii wysyłek. Wyślij pierwszą wiadomość!</td></tr>`;
+                    return;
+                }
+                tbody.innerHTML = data.history.map(item => `
+                    <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/30">
+                        <td class="py-2.5 px-3 text-slate-500">${item.created_at?.slice(0, 16) || ''}</td>
+                        <td class="py-2.5 px-3"><span class="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">${item.type}</span></td>
+                        <td class="py-2.5 px-3 font-medium">${item.recipients}</td>
+                        <td class="py-2.5 px-3">
+                            <span class="px-2 py-0.5 rounded text-[10px] font-bold ${item.status === 'SUCCESS' || item.status === 'VERIFIED' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' : (item.status === 'PARTIAL' ? 'bg-amber-100 text-amber-700' : 'bg-rose-100 text-rose-700')}">
+                                ${item.status}
+                            </span>
+                        </td>
+                        <td class="py-2.5 px-3 text-right font-semibold text-slate-700 dark:text-slate-200">${item.points_cost?.toFixed(2) || '0.00'} pkt</td>
+                    </tr>
+                `).join('');
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        // Senders Management
+        async function fetchSenders() {
+            try {
+                const res = await fetch('/api/senders');
+                const data = await res.json();
+                const smsSenderSelect = document.getElementById('smsSenderSelect');
+                const sendersListDiv = document.getElementById('sendersList');
+
+                sendersList = data.senders || [];
+
+                if (smsSenderSelect) {
+                    smsSenderSelect.innerHTML = `<option value="">Domyślny nadawca</option>` +
+                        sendersList.map(s => `<option value="${s.sender}" ${s.default ? 'selected' : ''}>${s.sender} (${s.status})</option>`).join('');
+                }
+
+                if (sendersListDiv) {
+                    if (sendersList.length === 0) {
+                        sendersListDiv.innerHTML = `<p class="text-slate-400 py-3 text-center">Brak zarejestrowanych nadawców lub brak połączenia.</p>`;
+                    } else {
+                        sendersListDiv.innerHTML = sendersList.map(s => `
+                            <div class="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-700">
+                                <div>
+                                    <span class="font-bold text-slate-800 dark:text-white">${s.sender}</span>
+                                    <span class="ml-2 px-1.5 py-0.5 text-[10px] rounded ${s.status === 'ACTIVE' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}">${s.status}</span>
+                                    ${s.default ? '<span class="ml-1 text-[10px] text-blue-600 font-bold">(Domyślny)</span>' : ''}
+                                </div>
+                                <div class="flex gap-1.5">
+                                    ${!s.default ? `<button onclick="setDefaultSender('${s.sender}')" class="px-2 py-1 bg-blue-50 text-blue-600 rounded text-[11px] hover:bg-blue-100 font-medium">Ustaw domyślny</button>` : ''}
+                                    <button onclick="deleteSender('${s.sender}')" class="p-1 text-rose-500 hover:text-rose-700"><i class="fa-solid fa-trash"></i></button>
+                                </div>
+                            </div>
+                        `).join('');
+                    }
+                }
+            } catch (e) {
+                console.warn(e);
+            }
+        }
+
+        async function handleAddSender(e) {
+            e.preventDefault();
+            const name = document.getElementById('newSenderName').value.trim();
+            if (!name) return;
+            try {
+                const res = await fetch('/api/senders', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ name })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    Swal.fire({ icon: 'success', title: 'Dodano!', text: data.message });
+                    document.getElementById('newSenderName').value = '';
+                    fetchSenders();
+                } else {
+                    Swal.fire({ icon: 'error', title: 'Błąd', text: data.error });
+                }
+            } catch (err) {
+                Swal.fire({ icon: 'error', title: 'Błąd sieci', text: err.message });
+            }
+        }
+
+        async function setDefaultSender(name) {
+            try {
+                const res = await fetch('/api/senders/default', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ name })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    Swal.fire({ icon: 'success', title: 'Sukces', text: data.message, timer: 1500, showConfirmButton: false });
+                    fetchSenders();
+                }
+            } catch (e) {
+                Swal.fire({ icon: 'error', title: 'Błąd', text: e.message });
+            }
+        }
+
+        async function deleteSender(name) {
+            const confirm = await Swal.fire({
+                title: `Usunąć nadawcę "${name}"?`,
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'Tak, usuń',
+                cancelButtonText: 'Anuluj'
+            });
+            if (!confirm.isConfirmed) return;
+
+            try {
+                const res = await fetch(`/api/senders/${name}`, { method: 'DELETE' });
+                const data = await res.json();
+                if (data.success) {
+                    Swal.fire({ icon: 'success', title: 'Usunięto', text: data.message, timer: 1500, showConfirmButton: false });
+                    fetchSenders();
+                } else {
+                    Swal.fire({ icon: 'error', title: 'Błąd', text: data.error });
+                }
+            } catch (e) {
+                Swal.fire({ icon: 'error', title: 'Błąd', text: e.message });
+            }
+        }
+
+        // Templates Management
+        async function fetchTemplates() {
+            try {
+                const res = await fetch('/api/templates');
+                const data = await res.json();
+                savedTemplates = data.templates || [];
+                const select = document.getElementById('smsTemplateSelect');
+                if (select) {
+                    select.innerHTML = `<option value="">-- Wybierz szablon --</option>` +
+                        savedTemplates.map(t => `<option value="${t.id}">${t.name} (${t.category})</option>`).join('');
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        function applySmsTemplate(templateId) {
+            if (!templateId) return;
+            const tpl = savedTemplates.find(t => t.id == templateId);
+            if (tpl) {
+                document.getElementById('smsMessageText').value = tpl.content;
+                calculateSmsMetrics();
+            }
+        }
+
+        // SMS Metrics and Realtime Calculator
+        function calculateSmsMetrics() {
+            const text = document.getElementById('smsMessageText').value || '';
+            const previewBubble = document.getElementById('previewBubble');
+            const previewSender = document.getElementById('previewSender');
+            const senderSelect = document.getElementById('smsSenderSelect');
+
+            // Update live phone preview
+            previewBubble.textContent = text || 'Wpisz treść wiadomości, aby zobaczyć podgląd na żywo...';
+            previewSender.textContent = senderSelect?.value || appConfig.default_sender || 'SMSAPI';
+
+            // Detect Unicode characters
+            let isUnicode = false;
+            for (let i = 0; i < text.length; i++) {
+                if (!gsm7Chars.includes(text[i])) {
+                    isUnicode = true;
+                    break;
+                }
+            }
+
+            const unicodeWarning = document.getElementById('unicodeWarning');
+            if (isUnicode && text.length > 0) {
+                unicodeWarning.classList.remove('hidden');
+            } else {
+                unicodeWarning.classList.add('hidden');
+            }
+
+            // Calculate parts
+            let maxSingle = isUnicode ? 70 : 160;
+            let maxConcat = isUnicode ? 67 : 153;
+            let charLen = text.length;
+            let parts = 1;
+
+            if (charLen > maxSingle) {
+                parts = Math.ceil(charLen / maxConcat);
+            }
+
+            const charCounter = document.getElementById('charCounter');
+            const partsBadge = document.getElementById('partsBadge');
+
+            charCounter.textContent = `${charLen} / ${parts > 1 ? parts * maxConcat : maxSingle} zn.`;
+            partsBadge.textContent = `${parts} ${parts === 1 ? 'SMS' : (parts < 5 ? 'SMSy' : 'SMSów')}`;
+            if (isUnicode) {
+                partsBadge.textContent += ' (Unicode)';
+            }
+        }
+
+        function normalizeMessageChars() {
+            const txtArea = document.getElementById('smsMessageText');
+            let txt = txtArea.value;
+            let normalized = '';
+            for (let i = 0; i < txt.length; i++) {
+                normalized += plMap[txt[i]] || txt[i];
+            }
+            txtArea.value = normalized;
+            calculateSmsMetrics();
+        }
+
+        function updateRecipientCount() {
+            const raw = document.getElementById('smsRecipients').value || '';
+            const list = raw.split(/[\n,;]+/).map(s => s.trim()).filter(s => s.length > 0);
+            document.getElementById('recipientCountBadge').textContent = `${list.length} ${list.length === 1 ? 'numer' : 'numerów'}`;
+        }
+
+        // Quick Send Handler
+        async function handleQuickSend(e) {
+            e.preventDefault();
+            const to = document.getElementById('quickTo').value.trim();
+            const message = document.getElementById('quickMessage').value.trim();
+            const btn = document.getElementById('btnQuickSend');
+
+            btn.disabled = true;
+            btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Wysyłanie...`;
+
+            try {
+                const res = await fetch('/api/sms/send', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ to, message })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    Swal.fire({ icon: 'success', title: 'Wysłano pomyślnie!', text: data.message });
+                    document.getElementById('quickSendForm').reset();
+                    fetchBalance();
+                    fetchStats();
+                    fetchRecentHistory();
+                } else {
+                    Swal.fire({ icon: 'error', title: 'Błąd wysyłki', text: data.error });
+                }
+            } catch (err) {
+                Swal.fire({ icon: 'error', title: 'Błąd sieci', text: err.message });
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = `<i class="fa-solid fa-paper-plane"></i> Wyślij szybki SMS`;
+            }
+        }
+
+        // Main Send SMS Form Handler
+        async function handleSendSms(e) {
+            e.preventDefault();
+            const toRaw = document.getElementById('smsRecipients').value.trim();
+            const message = document.getElementById('smsMessageText').value.trim();
+            const from = document.getElementById('smsSenderSelect').value;
+            const scheduledDate = document.getElementById('smsScheduledDate').value;
+            const flash = document.getElementById('chkFlash').checked;
+            const fast = document.getElementById('chkFast').checked;
+            const normalize = document.getElementById('chkNormalize').checked;
+            const test = document.getElementById('chkTest').checked;
+            const btn = document.getElementById('btnSendSmsSubmit');
+
+            const recipients = toRaw.split(/[\n,;]+/).map(s => s.trim()).filter(s => s.length > 0);
+            if (recipients.length === 0) {
+                Swal.fire({ icon: 'warning', title: 'Brak odbiorców', text: 'Wprowadź co najmniej jeden numer telefonu.' });
+                return;
+            }
+
+            btn.disabled = true;
+            btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Trwa wysyłanie...`;
+
+            try {
+                const res = await fetch('/api/sms/send', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        to: recipients,
+                        message,
+                        from,
+                        date: scheduledDate ? Math.floor(new Date(scheduledDate).getTime() / 1000) : null,
+                        flash,
+                        fast,
+                        normalize,
+                        test
+                    })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    Swal.fire({
+                        icon: 'success',
+                        title: test ? 'Symulacja udana (Tryb testowy)' : 'Wiadomości wysłane!',
+                        html: `<p>${data.message}</p><p class="text-xs text-slate-500 mt-2">Liczba odbiorców: ${data.total_recipients}</p>`
+                    });
+                    fetchBalance();
+                    fetchStats();
+                    fetchRecentHistory();
+                } else {
+                    Swal.fire({ icon: 'error', title: 'Błąd wysyłki', text: data.error });
+                }
+            } catch (err) {
+                Swal.fire({ icon: 'error', title: 'Błąd połączenia', text: err.message });
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = `<i class="fa-solid fa-paper-plane"></i> Wyślij wiadomość`;
+            }
+        }
+
+        // CSV File Upload & Parsing
+        function handleCsvFileUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            Papa.parse(file, {
+                header: true,
+                skipEmptyLines: true,
+                complete: function(results) {
+                    if (results.data && results.data.length > 0) {
+                        parsedCsvData = results.data;
+                        setupCsvMapping(results.meta.fields || Object.keys(results.data[0]));
+                    } else {
+                        Swal.fire({ icon: 'error', title: 'Błąd pliku', text: 'Plik jest pusty lub ma nieprawidłowy format.' });
+                    }
+                },
+                error: function(err) {
+                    Swal.fire({ icon: 'error', title: 'Błąd parsowania CSV', text: err.message });
+                }
+            });
+        }
+
+        function setupCsvMapping(fields) {
+            const phoneColSelect = document.getElementById('csvPhoneColumn');
+            const pillsDiv = document.getElementById('csvPlaceholderPills');
+            const workspace = document.getElementById('csvWorkspace');
+            const rowCountBadge = document.getElementById('csvRowCountBadge');
+
+            phoneColSelect.innerHTML = fields.map(f => `<option value="${f}">${f}</option>`).join('');
+
+            // Auto-detect phone column
+            const phoneField = fields.find(f => /tel|phone|numer|kom|telefon/i.test(f));
+            if (phoneField) phoneColSelect.value = phoneField;
+
+            // Generate clickable placeholder pills
+            pillsDiv.innerHTML = fields.map(f => `
+                <button type="button" onclick="insertCsvPlaceholder('${f}')" class="px-2 py-1 rounded bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 hover:bg-blue-200 transition-colors">
+                    [%${f}%]
+                </button>
+            `).join('');
+
+            rowCountBadge.textContent = parsedCsvData.length;
+            workspace.classList.remove('hidden');
+
+            updateCsvMergedPreview();
+        }
+
+        function insertCsvPlaceholder(field) {
+            const txtArea = document.getElementById('csvMessageTemplate');
+            txtArea.value += `[%${field}%]`;
+            updateCsvMergedPreview();
+        }
+
+        function updateCsvMergedPreview() {
+            if (!parsedCsvData || parsedCsvData.length === 0) return;
+
+            const phoneField = document.getElementById('csvPhoneColumn').value;
+            const template = document.getElementById('csvMessageTemplate').value || '';
+            const thead = document.getElementById('csvPreviewThead');
+            const tbody = document.getElementById('csvPreviewTbody');
+
+            thead.innerHTML = `<tr><th class="py-2 px-3">#</th><th class="py-2 px-3">Telefon (${phoneField})</th><th class="py-2 px-3">Wygenerowana treść</th></tr>`;
+
+            const previewRows = parsedCsvData.slice(0, 8);
+            tbody.innerHTML = previewRows.map((row, idx) => {
+                let msg = template;
+                Object.keys(row).forEach(k => {
+                    msg = msg.replaceAll(`[%${k}%]`, row[k] || '');
+                });
+                return `
+                    <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/30">
+                        <td class="py-2 px-3 font-mono text-slate-400">${idx + 1}</td>
+                        <td class="py-2 px-3 font-semibold text-blue-600">${row[phoneField] || '<span class="text-rose-500">Brak</span>'}</td>
+                        <td class="py-2 px-3 text-slate-700 dark:text-slate-200">${msg || '<i class="text-slate-400">Wpisz szablon powyżej...</i>'}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        async function startBulkCsvSending() {
+            if (!parsedCsvData || parsedCsvData.length === 0) return;
+
+            const phoneField = document.getElementById('csvPhoneColumn').value;
+            const template = document.getElementById('csvMessageTemplate').value.trim();
+            const isTest = document.getElementById('csvChkTest').checked;
+            const isNormalize = document.getElementById('csvChkNormalize').checked;
+
+            if (!template) {
+                Swal.fire({ icon: 'warning', title: 'Wymagany szablon', text: 'Wprowadź treść wiadomości ze zmiennymi przed rozpoczęciem.' });
+                return;
+            }
+
+            const confirm = await Swal.fire({
+                title: 'Rozpocząć wysyłkę masową?',
+                html: `<p>Liczba wiadomości: <b>${parsedCsvData.length}</b></p><p class="text-xs text-slate-500 mt-2">${isTest ? 'Tryb testowy: Punkty nie zostaną pobrane.' : 'Wiadomości zostaną wysłane natychmiast.'}</p>`,
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonText: 'Tak, wyślij masowo',
+                cancelButtonText: 'Anuluj'
+            });
+
+            if (!confirm.isConfirmed) return;
+
+            // Prepare payload
+            const items = parsedCsvData.map(row => {
+                let msg = template;
+                Object.keys(row).forEach(k => {
+                    msg = msg.replaceAll(`[%${k}%]`, row[k] || '');
+                });
+                return {
+                    to: row[phoneField],
+                    message: msg
+                };
+            }).filter(i => i.to && i.message);
+
+            const progressCard = document.getElementById('csvProgressCard');
+            const progressBar = document.getElementById('csvProgressBar');
+            const progressPercent = document.getElementById('csvProgressPercent');
+            const sentCounter = document.getElementById('csvSentCounter');
+            const failedCounter = document.getElementById('csvFailedCounter');
+            const btn = document.getElementById('btnStartBulk');
+
+            progressCard.classList.remove('hidden');
+            btn.disabled = true;
+            progressBar.style.width = '30%';
+            progressPercent.textContent = '30%';
+
+            try {
+                const res = await fetch('/api/sms/bulk-send', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        items,
+                        test: isTest,
+                        normalize: isNormalize
+                    })
+                });
+                const data = await res.json();
+
+                progressBar.style.width = '100%';
+                progressPercent.textContent = '100%';
+                sentCounter.textContent = `Wysłano: ${data.sent || 0}`;
+                failedCounter.textContent = `Błędów: ${data.failed || 0}`;
+
+                if (data.success) {
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Zakończono wysyłkę masową!',
+                        html: `<p>Wysłano pomyślnie: <b>${data.sent}</b></p><p>Błędy: <b>${data.failed}</b></p><p class="text-xs text-slate-500 mt-2">Łączny koszt: ${data.total_points?.toFixed(2) || 0} pkt</p>`
+                    });
+                    fetchBalance();
+                    fetchStats();
+                    fetchRecentHistory();
+                } else {
+                    Swal.fire({ icon: 'error', title: 'Błąd', text: data.error });
+                }
+            } catch (err) {
+                Swal.fire({ icon: 'error', title: 'Błąd połączenia', text: err.message });
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
+        // MFA / 2FA Handlers
+        async function handleSendMfa(e) {
+            e.preventDefault();
+            const phone_number = document.getElementById('mfaSendPhone').value.trim();
+            const content = document.getElementById('mfaSendContent').value.trim();
+            const fast = document.getElementById('mfaFast').checked;
+            const btn = document.getElementById('btnSendMfa');
+
+            btn.disabled = true;
+            btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Generowanie...`;
+
+            try {
+                const res = await fetch('/api/mfa/send', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ phone_number, content, fast })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    Swal.fire({ icon: 'success', title: 'Kod 2FA wysłany!', text: data.message });
+                    document.getElementById('mfaVerifyPhone').value = phone_number;
+                } else {
+                    Swal.fire({ icon: 'error', title: 'Błąd MFA', text: data.error });
+                }
+            } catch (err) {
+                Swal.fire({ icon: 'error', title: 'Błąd', text: err.message });
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = `<i class="fa-solid fa-paper-plane"></i> Wygeneruj i wyślij kod 2FA`;
+            }
+        }
+
+        async function handleVerifyMfa(e) {
+            e.preventDefault();
+            const phone_number = document.getElementById('mfaVerifyPhone').value.trim();
+            const code = document.getElementById('mfaVerifyCode').value.trim();
+            const box = document.getElementById('mfaResultBox');
+
+            try {
+                const res = await fetch('/api/mfa/verify', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ phone_number, code })
+                });
+                const data = await res.json();
+                box.classList.remove('hidden');
+                if (data.success) {
+                    box.className = 'p-4 rounded-xl text-center text-sm font-semibold bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300 border border-emerald-300';
+                    box.innerHTML = `<i class="fa-solid fa-check-circle text-lg"></i><p class="mt-1">${data.message}</p>`;
+                } else {
+                    box.className = 'p-4 rounded-xl text-center text-sm font-semibold bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-300 border border-rose-300';
+                    box.innerHTML = `<i class="fa-solid fa-times-circle text-lg"></i><p class="mt-1">${data.error}</p>`;
+                }
+            } catch (err) {
+                Swal.fire({ icon: 'error', title: 'Błąd', text: err.message });
+            }
+        }
+
+        // VMS & MMS Handlers
+        async function handleSendVms(e) {
+            e.preventDefault();
+            const to = document.getElementById('vmsTo').value.trim();
+            const tts = document.getElementById('vmsText').value.trim();
+            const tts_lector = document.getElementById('vmsLector').value;
+            const tries = document.getElementById('vmsTries').value;
+            const interval = document.getElementById('vmsInterval').value;
+
+            try {
+                const res = await fetch('/api/vms/send', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ to, tts, tts_lector, try: tries, interval })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    Swal.fire({ icon: 'success', title: 'Połączenie VMS zlecone', text: data.message });
+                    fetchBalance();
+                    fetchStats();
+                } else {
+                    Swal.fire({ icon: 'error', title: 'Błąd VMS', text: data.error });
+                }
+            } catch (err) {
+                Swal.fire({ icon: 'error', title: 'Błąd', text: err.message });
+            }
+        }
+
+        async function handleSendMms(e) {
+            e.preventDefault();
+            const to = document.getElementById('mmsTo').value.trim();
+            const subject = document.getElementById('mmsSubject').value.trim();
+            const smil = document.getElementById('mmsSmil').value.trim();
+
+            try {
+                const res = await fetch('/api/mms/send', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ to, subject, smil })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    Swal.fire({ icon: 'success', title: 'Wysłano MMS', text: data.message });
+                    fetchBalance();
+                } else {
+                    Swal.fire({ icon: 'error', title: 'Błąd MMS', text: data.error });
+                }
+            } catch (err) {
+                Swal.fire({ icon: 'error', title: 'Błąd', text: err.message });
+            }
+        }
+
+        // Contacts Handlers
+        async function fetchContacts() {
+            try {
+                const tbody = document.getElementById('contactsTableBody');
+                tbody.innerHTML = `<tr><td colspan="5" class="py-6 text-center text-slate-400">Ładowanie kontaktów...</td></tr>`;
+                const res = await fetch('/api/contacts');
+                const data = await res.json();
+                allContacts = data.contacts || [];
+                renderContactsTable(allContacts);
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        function renderContactsTable(list) {
+            const tbody = document.getElementById('contactsTableBody');
+            const countBadge = document.getElementById('contactsCountBadge');
+            countBadge.textContent = `${list.length} kontaktów`;
+
+            if (list.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" class="py-6 text-center text-slate-400">Brak kontaktów w książce adresowej SMSAPI.</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = list.map(c => `
+                <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/30">
+                    <td class="py-2.5 px-3 font-medium">${c.first_name || ''} ${c.last_name || ''}</td>
+                    <td class="py-2.5 px-3 font-mono text-blue-600">${c.phone_number}</td>
+                    <td class="py-2.5 px-3 text-slate-500">${c.email || '-'}</td>
+                    <td class="py-2.5 px-3 text-slate-500">${c.city || '-'}</td>
+                    <td class="py-2.5 px-3 text-right">
+                        <button onclick="deleteContact('${c.id}')" class="text-rose-500 hover:text-rose-700"><i class="fa-solid fa-trash"></i></button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function filterContactsTable() {
+            const q = document.getElementById('contactSearchInput').value.toLowerCase();
+            const filtered = allContacts.filter(c =>
+                (c.first_name && c.first_name.toLowerCase().includes(q)) ||
+                (c.last_name && c.last_name.toLowerCase().includes(q)) ||
+                (c.phone_number && c.phone_number.includes(q))
+            );
+            renderContactsTable(filtered);
+        }
+
+        function openAddContactModal() {
+            document.getElementById('addContactModal').classList.remove('hidden');
+        }
+        function closeAddContactModal() {
+            document.getElementById('addContactModal').classList.add('hidden');
+        }
+
+        async function handleCreateContact(e) {
+            e.preventDefault();
+            const phone_number = document.getElementById('modalContactPhone').value.trim();
+            const first_name = document.getElementById('modalContactFirst').value.trim();
+            const last_name = document.getElementById('modalContactLast').value.trim();
+            const email = document.getElementById('modalContactEmail').value.trim();
+
+            try {
+                const res = await fetch('/api/contacts', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ phone_number, first_name, last_name, email })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    Swal.fire({ icon: 'success', title: 'Dodano kontakt!', text: data.message });
+                    closeAddContactModal();
+                    fetchContacts();
+                } else {
+                    Swal.fire({ icon: 'error', title: 'Błąd', text: data.error });
+                }
+            } catch (err) {
+                Swal.fire({ icon: 'error', title: 'Błąd', text: err.message });
+            }
+        }
+
+        async function deleteContact(id) {
+            const confirm = await Swal.fire({ title: 'Usunąć ten kontakt?', icon: 'warning', showCancelButton: true });
+            if (!confirm.isConfirmed) return;
+            try {
+                const res = await fetch(`/api/contacts/${id}`, { method: 'DELETE' });
+                const data = await res.json();
+                if (data.success) fetchContacts();
+            } catch (e) { console.error(e); }
+        }
+
+        // Short URL & HLR Lookup Handlers
+        async function handleCreateShortUrl(e) {
+            e.preventDefault();
+            const url = document.getElementById('shortUrlTarget').value.trim();
+            const name = document.getElementById('shortUrlName').value.trim();
+            const resultBox = document.getElementById('shortUrlResult');
+
+            try {
+                const res = await fetch('/api/shorturl', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ url, name })
+                });
+                const data = await res.json();
+                resultBox.classList.remove('hidden');
+                if (data.success) {
+                    resultBox.innerHTML = `<b>Skrócony link utworzony:</b> <a href="${data.short_url}" target="_blank" class="underline font-bold text-cyan-600">${data.short_url}</a>`;
+                } else {
+                    resultBox.innerHTML = `<span class="text-rose-600 font-bold">Błąd: ${data.error}</span>`;
+                }
+            } catch (err) {
+                Swal.fire({ icon: 'error', title: 'Błąd', text: err.message });
+            }
+        }
+
+        async function handleHlrCheck(e) {
+            e.preventDefault();
+            const number = document.getElementById('hlrNumber').value.trim();
+            const box = document.getElementById('hlrResultBox');
+
+            try {
+                const res = await fetch('/api/hlr', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ number })
+                });
+                const data = await res.json();
+                box.classList.remove('hidden');
+                if (data.success) {
+                    box.innerHTML = `
+                        <div class="font-bold text-sm text-slate-800 dark:text-white">Wynik zapytania HLR:</div>
+                        <div>Numer: <b>${data.number}</b></div>
+                        <div>Status sieci: <span class="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 font-bold">${data.status}</span></div>
+                        <div>Cena sprawdzenia: <b>${data.price} pkt</b></div>
+                    `;
+                } else {
+                    box.innerHTML = `<span class="text-rose-600 font-bold">Błąd: ${data.error}</span>`;
+                }
+            } catch (err) {
+                Swal.fire({ icon: 'error', title: 'Błąd', text: err.message });
+            }
+        }
+
+        // Blacklist Handlers
+        async function fetchBlacklist() {
+            try {
+                const tbody = document.getElementById('blacklistTableBody');
+                tbody.innerHTML = `<tr><td colspan="3" class="py-6 text-center text-slate-400">Ładowanie czarnej listy...</td></tr>`;
+                const res = await fetch('/api/blacklist');
+                const data = await res.json();
+                const list = data.blacklist || [];
+
+                if (list.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="3" class="py-6 text-center text-slate-400">Brak zablokowanych numerów.</td></tr>`;
+                    return;
+                }
+
+                tbody.innerHTML = list.map(b => `
+                    <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/30">
+                        <td class="py-2.5 px-3 font-mono font-bold text-rose-600">${b.phone_number}</td>
+                        <td class="py-2.5 px-3 text-slate-500">${b.created_at || '-'}</td>
+                        <td class="py-2.5 px-3 text-right">
+                            <button onclick="removeBlacklist('${b.id}')" class="text-xs px-2.5 py-1 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 text-slate-700 dark:text-slate-300 rounded font-medium">Odblokuj</button>
+                        </td>
+                    </tr>
+                `).join('');
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        async function handleAddToBlacklist(e) {
+            e.preventDefault();
+            const phone_number = document.getElementById('blacklistPhone').value.trim();
+            try {
+                const res = await fetch('/api/blacklist', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ phone_number })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    Swal.fire({ icon: 'success', title: 'Zablokowano!', text: data.message });
+                    document.getElementById('blacklistPhone').value = '';
+                    fetchBlacklist();
+                } else {
+                    Swal.fire({ icon: 'error', title: 'Błąd', text: data.error });
+                }
+            } catch (err) {
+                Swal.fire({ icon: 'error', title: 'Błąd', text: err.message });
+            }
+        }
+
+        async function removeBlacklist(id) {
+            try {
+                const res = await fetch(`/api/blacklist/${id}`, { method: 'DELETE' });
+                const data = await res.json();
+                if (data.success) fetchBlacklist();
+            } catch (e) { console.error(e); }
+        }
+
+        // History Handlers
+        async function fetchHistory() {
+            try {
+                const q = document.getElementById('historySearch')?.value || '';
+                const type = document.getElementById('historyTypeFilter')?.value || '';
+                const tbody = document.getElementById('historyTableBody');
+
+                const res = await fetch(`/api/history?q=${encodeURIComponent(q)}&type=${encodeURIComponent(type)}`);
+                const data = await res.json();
+                const list = data.history || [];
+
+                if (list.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="7" class="py-8 text-center text-slate-400">Brak wpisów w historii spełniających kryteria.</td></tr>`;
+                    return;
+                }
+
+                tbody.innerHTML = list.map(item => `
+                    <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/30">
+                        <td class="py-2.5 px-3 text-slate-500 whitespace-nowrap">${item.created_at || ''}</td>
+                        <td class="py-2.5 px-3"><span class="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">${item.type}</span></td>
+                        <td class="py-2.5 px-3 font-semibold">${item.sender || '-'}</td>
+                        <td class="py-2.5 px-3 font-medium text-slate-800 dark:text-slate-200">${item.recipients}</td>
+                        <td class="py-2.5 px-3 text-slate-600 dark:text-slate-300 max-w-xs truncate" title="${item.message}">${item.message}</td>
+                        <td class="py-2.5 px-3">
+                            <span class="px-2 py-0.5 rounded text-[10px] font-bold ${item.status === 'SUCCESS' || item.status === 'VERIFIED' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' : 'bg-rose-100 text-rose-700'}">
+                                ${item.status}
+                            </span>
+                        </td>
+                        <td class="py-2.5 px-3 text-right font-bold text-slate-700 dark:text-slate-200">${item.points_cost?.toFixed(2) || '0.00'} pkt</td>
+                    </tr>
+                `).join('');
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        async function confirmClearHistory() {
+            const confirm = await Swal.fire({
+                title: 'Wyczyścić całą historię?',
+                text: 'Tej operacji nie można cofnąć.',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'Tak, wyczyść',
+                cancelButtonText: 'Anuluj'
+            });
+            if (!confirm.isConfirmed) return;
+
+            try {
+                await fetch('/api/history', { method: 'DELETE' });
+                fetchHistory();
+                fetchStats();
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        // Settings Handlers
+        function toggleTokenVisibility() {
+            const input = document.getElementById('cfgAccessToken');
+            const icon = document.getElementById('tokenEyeIcon');
+            if (input.type === 'password') {
+                input.type = 'text';
+                icon.classList.replace('fa-eye', 'fa-eye-slash');
+            } else {
+                input.type = 'password';
+                icon.classList.replace('fa-eye-slash', 'fa-eye');
+            }
+        }
+
+        async function testConnectionWithCurrentInputs() {
+            const access_token = document.getElementById('cfgAccessToken').value.trim();
+            const domain = document.getElementById('cfgDomain').value;
+
+            try {
+                const res = await fetch('/api/test-connection', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ access_token, domain })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Połączenie udane!',
+                        html: `<p class="text-sm">${data.message}</p><p class="text-xs text-slate-500 mt-2">Dostępne punkty: <b>${data.balance.points}</b></p>`
+                    });
+                } else {
+                    Swal.fire({ icon: 'error', title: 'Błąd połączenia', text: data.error });
+                }
+            } catch (err) {
+                Swal.fire({ icon: 'error', title: 'Błąd sieci', text: err.message });
+            }
+        }
+
+        async function handleSaveConfig(e) {
+            e.preventDefault();
+            const access_token = document.getElementById('cfgAccessToken').value.trim();
+            const domain = document.getElementById('cfgDomain').value;
+            const default_sender = document.getElementById('cfgDefaultSender').value.trim();
+
+            try {
+                const res = await fetch('/api/config', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ access_token, domain, default_sender })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    Swal.fire({ icon: 'success', title: 'Zapisano!', text: data.message, timer: 1500, showConfirmButton: false });
+                    fetchConfig();
+                    fetchBalance();
+                    fetchSenders();
+                }
+            } catch (err) {
+                Swal.fire({ icon: 'error', title: 'Błąd', text: err.message });
+            }
+        }
+    </script>
+</body>
+</html>
