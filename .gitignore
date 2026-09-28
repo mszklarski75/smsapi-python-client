@@ -108,4 +108,9 @@ com_crashlytics_export_strings.xml
 crashlytics.properties
 crashlytics-build.properties
 
-/venv/
+# Local SQLite database & secrets
+*.db
+*.sqlite
+*.sqlite3
+.env
+
