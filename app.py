@@ -1067,6 +1067,20 @@ def delete_template(id):
 
 
 # ==========================================================
+# API Routes: Shutdown Application
+# ==========================================================
+@app.route('/api/shutdown', methods=['POST'])
+def shutdown_app():
+    def stop_server():
+        time.sleep(0.5)
+        os._exit(0)
+    import threading
+    import time
+    threading.Thread(target=stop_server, daemon=True).start()
+    return jsonify({'success': True, 'message': 'Aplikacja SMSAPI Studio została pomyślnie zamknięta.'})
+
+
+# ==========================================================
 # Main Web Dashboard Route
 # ==========================================================
 @app.route('/')

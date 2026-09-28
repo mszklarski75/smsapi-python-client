@@ -84,6 +84,11 @@
             <button onclick="toggleDarkMode()" class="p-2 rounded-xl text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors" title="Przełącz motyw ciemny/jasny">
                 <i id="themeIcon" class="fa-solid fa-moon"></i>
             </button>
+
+            <!-- Exit / Shutdown Button -->
+            <button onclick="confirmShutdownApp()" class="p-2 rounded-xl text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/30 transition-colors" title="Wyłącz i zamknij aplikację">
+                <i class="fa-solid fa-power-off"></i>
+            </button>
         </div>
     </header>
 
@@ -2265,6 +2270,31 @@
                 }
             } catch (err) {
                 Swal.fire({ icon: 'error', title: 'Błąd', text: err.message });
+            }
+        }
+        async function confirmShutdownApp() {
+            const confirm = await Swal.fire({
+                title: 'Zamknąć aplikację?',
+                text: 'Serwer SMSAPI Studio zostanie wyłączony.',
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonText: 'Tak, wyłącz',
+                cancelButtonText: 'Anuluj',
+                confirmButtonColor: '#ef4444'
+            });
+            if (!confirm.isConfirmed) return;
+
+            try {
+                await fetch('/api/shutdown', { method: 'POST' });
+                Swal.fire({
+                    icon: 'info',
+                    title: 'Aplikacja została zamknięta',
+                    text: 'Możesz teraz zamknąć tę kartę przeglądarki.',
+                    showConfirmButton: false
+                });
+                setTimeout(() => { window.close(); }, 2000);
+            } catch (e) {
+                console.log('App shutdown triggered');
             }
         }
     </script>
