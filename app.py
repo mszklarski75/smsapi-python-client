@@ -895,14 +895,33 @@ def create_short_url():
     url = data.get('url', '').strip()
     name = data.get('name', '').strip()
     if not url:
-        return jsonify({'success': False, 'error': 'Adres URL jest wymagany.'}), 400
+        return jsonify({'success': False, 'error': 'Adres docelowy URL jest wymagany.'}), 400
 
     try:
         client = get_smsapi_client()
-        res = client.shorturl.create_short_url(url=url, name=name or None)
-        return jsonify({'success': True, 'message': 'Skrócony link został utworzony!', 'short_url': getattr(res, 'short_url', '')})
+        params = {'url': url}
+        if name:
+            params['name'] = name
+
+        res = client.shorturl.create_short_url(**params)
+        short_url = getattr(res, 'short_url', None) or getattr(res, 'url', None)
+        link_id = getattr(res, 'id', None)
+
+        if not short_url and link_id:
+            short_url = f"https://idz.do/{link_id}"
+        elif short_url and not short_url.startswith('http'):
+            short_url = f"https://{short_url}"
+
+        return jsonify({
+            'success': True,
+            'message': 'Skrócony link został utworzony!',
+            'short_url': short_url,
+            'id': link_id,
+            'name': name,
+            'original_url': url
+        })
     except Exception as e:
-        return jsonify({'success': False, 'error': f'Błąd: {str(e)}'}), 400
+        return jsonify({'success': False, 'error': f'Błąd API SMSAPI: {str(e)}'}), 400
 
 
 # ==========================================================

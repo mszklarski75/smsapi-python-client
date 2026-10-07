@@ -2580,7 +2580,11 @@
             e.preventDefault();
             const url = document.getElementById('shortUrlTarget').value.trim();
             const name = document.getElementById('shortUrlName').value.trim();
+            const btn = document.getElementById('btnCreateShortUrl');
             const resultBox = document.getElementById('shortUrlResult');
+
+            btn.disabled = true;
+            btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin mr-1.5"></i> Generowanie linku...`;
 
             try {
                 const res = await fetch('/api/shorturl', {
@@ -2590,11 +2594,65 @@
                 });
                 const data = await res.json();
                 resultBox.classList.remove('hidden');
-                if (data.success) {
-                    resultBox.innerHTML = `<b>Skrócony link utworzony:</b> <a href="${data.short_url}" target="_blank" class="underline font-bold text-cyan-600">${data.short_url}</a>`;
+
+                if (data.success && data.short_url) {
+                    resultBox.className = 'p-4 rounded-xl bg-cyan-50 dark:bg-cyan-900/30 border border-cyan-200 dark:border-cyan-800 text-xs space-y-3';
+                    resultBox.innerHTML = `
+                        <div class="flex items-center justify-between">
+                            <span class="font-bold text-cyan-800 dark:text-cyan-200 uppercase tracking-wider text-[11px] flex items-center gap-1.5">
+                                <i class="fa-solid fa-check-circle text-emerald-500"></i> Gotowy skrócony link idz.do
+                            </span>
+                            <span class="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold bg-emerald-100 dark:bg-emerald-950 px-2 py-0.5 rounded">0 pkt (Bezpłatnie)</span>
+                        </div>
+                        <div class="flex items-center gap-2 p-2 rounded-lg bg-white dark:bg-slate-800 border border-cyan-100 dark:border-cyan-900/50">
+                            <input type="text" readonly id="generatedShortUrlInput" value="${data.short_url}" class="w-full bg-transparent font-mono font-bold text-cyan-700 dark:text-cyan-300 text-sm outline-none select-all px-1">
+                            <button type="button" onclick="copyShortUrl('${data.short_url}')" class="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg font-bold text-xs flex items-center gap-1 shadow-sm whitespace-nowrap transition-colors">
+                                <i class="fa-solid fa-copy"></i> Kopiuj
+                            </button>
+                        </div>
+                        <div class="flex items-center justify-between pt-1 text-[11px]">
+                            <a href="${data.short_url}" target="_blank" class="text-cyan-600 dark:text-cyan-400 font-medium hover:underline flex items-center gap-1">
+                                <i class="fa-solid fa-arrow-up-right-from-square text-[10px]"></i> Testuj link w nowej karcie
+                            </a>
+                            <button type="button" onclick="insertShortUrlToSms('${data.short_url}')" class="font-bold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1">
+                                <i class="fa-solid fa-paper-plane text-[10px]"></i> Wstaw do SMS
+                            </button>
+                        </div>
+                    `;
+                    Swal.fire({ icon: 'success', title: 'Skrócono link!', text: data.short_url, timer: 1500, showConfirmButton: false });
+                } else {
+                    resultBox.className = 'p-3.5 rounded-xl bg-rose-50 dark:bg-rose-900/30 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-xs font-semibold';
+                    resultBox.innerHTML = `<div class="flex items-start gap-2"><i class="fa-solid fa-triangle-exclamation mt-0.5 text-rose-500"></i><div>${data.error || 'Nie udało się wygenerować skróconego linku.'}</div></div>`;
+                    Swal.fire({ icon: 'error', title: 'Błąd generowania linku', text: data.error || 'Nieznany błąd' });
                 }
             } catch (err) {
-                Swal.fire({ icon: 'error', title: 'Błąd', text: err.message });
+                resultBox.classList.remove('hidden');
+                resultBox.className = 'p-3.5 rounded-xl bg-rose-50 dark:bg-rose-900/30 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-xs font-semibold';
+                resultBox.innerHTML = `<div class="flex items-center gap-2"><i class="fa-solid fa-triangle-exclamation text-rose-500"></i><span>Błąd połączenia: ${err.message}</span></div>`;
+                Swal.fire({ icon: 'error', title: 'Błąd sieci', text: err.message });
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = `<i class="fa-solid fa-scissors"></i> Skróć link do idz.do`;
+            }
+        }
+
+        function copyShortUrl(url) {
+            navigator.clipboard.writeText(url).then(() => {
+                Swal.fire({ icon: 'success', title: 'Skopiowano!', text: url, timer: 1200, showConfirmButton: false });
+            }).catch(() => {
+                const input = document.getElementById('generatedShortUrlInput');
+                if (input) { input.select(); document.execCommand('copy'); }
+                Swal.fire({ icon: 'success', title: 'Skopiowano!', text: url, timer: 1200, showConfirmButton: false });
+            });
+        }
+
+        function insertShortUrlToSms(url) {
+            const textarea = document.getElementById('smsMessage');
+            if (textarea) {
+                textarea.value = (textarea.value ? textarea.value.trim() + ' ' : '') + url;
+                switchTab('sms-send');
+                updateCounters();
+                Swal.fire({ icon: 'success', title: 'Wstawiono do SMS!', text: `Dodano ${url} do treści wiadomości`, timer: 1200, showConfirmButton: false });
             }
         }
 
@@ -2602,6 +2660,12 @@
             e.preventDefault();
             const number = document.getElementById('hlrNumber').value.trim();
             const box = document.getElementById('hlrResultBox');
+            const btn = e.submitter || document.querySelector('#tab-shorturl-hlr button[type="submit"]');
+
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin mr-1.5"></i> Sprawdzanie w sieci...`;
+            }
 
             try {
                 const res = await fetch('/api/hlr', {
@@ -2611,11 +2675,43 @@
                 });
                 const data = await res.json();
                 box.classList.remove('hidden');
+
                 if (data.success) {
-                    box.innerHTML = `<div>Numer: <b>${data.number}</b></div><div>Status: <span class="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 font-bold">${data.status}</span></div><div>Cena: <b>${data.price} pkt</b></div>`;
+                    box.className = 'p-4 rounded-xl bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 text-xs space-y-2';
+                    box.innerHTML = `
+                        <div class="font-bold text-amber-800 dark:text-amber-200 uppercase tracking-wider text-[11px] flex items-center gap-1.5">
+                            <i class="fa-solid fa-tower-cell text-amber-600"></i> Wynik weryfikacji HLR
+                        </div>
+                        <div class="grid grid-cols-2 gap-2 pt-1 font-medium">
+                            <div class="p-2 rounded bg-white dark:bg-slate-800 border border-amber-100 dark:border-amber-900/40">
+                                <span class="text-slate-400 block text-[10px]">Numer:</span>
+                                <span class="font-mono font-bold text-slate-800 dark:text-slate-100 text-sm">${data.number}</span>
+                            </div>
+                            <div class="p-2 rounded bg-white dark:bg-slate-800 border border-amber-100 dark:border-amber-900/40">
+                                <span class="text-slate-400 block text-[10px]">Status:</span>
+                                <span class="font-bold text-emerald-600 dark:text-emerald-400 text-sm">${data.status}</span>
+                            </div>
+                        </div>
+                        <div class="text-[11px] text-slate-500 dark:text-slate-400 pt-1">
+                            Koszt zapytania: <b>${data.price || '0.00'} pkt</b>
+                        </div>
+                    `;
+                    fetchBalance();
+                } else {
+                    box.className = 'p-3.5 rounded-xl bg-rose-50 dark:bg-rose-900/30 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-xs font-semibold';
+                    box.innerHTML = `<div class="flex items-center gap-2"><i class="fa-solid fa-triangle-exclamation text-rose-500"></i><span>${data.error || 'Błąd zapytania HLR.'}</span></div>`;
+                    Swal.fire({ icon: 'error', title: 'Błąd HLR', text: data.error || 'Nieznany błąd' });
                 }
             } catch (err) {
+                box.classList.remove('hidden');
+                box.className = 'p-3.5 rounded-xl bg-rose-50 dark:bg-rose-900/30 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-xs font-semibold';
+                box.innerHTML = `<div class="flex items-center gap-2"><i class="fa-solid fa-triangle-exclamation text-rose-500"></i><span>Błąd: ${err.message}</span></div>`;
                 Swal.fire({ icon: 'error', title: 'Błąd', text: err.message });
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = `<i class="fa-solid fa-magnifying-glass"></i> Sprawdź numer (HLR)`;
+                }
             }
         }
 
