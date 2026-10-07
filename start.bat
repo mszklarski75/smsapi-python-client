@@ -1,91 +1,85 @@
 @echo off
 title SMSAPI Studio
 chcp 65001 > nul
+cls
 
-:: ==============================================================
-:: Inteligentne wykrywanie Pythona w systemie Windows
-:: ==============================================================
-set "PY_CMD="
-
-:: 1. Sprawdz zwykle polecenie python
-where python >nul 2>&1
-if %errorlevel% equ 0 (
-    set "PY_CMD=python"
-    goto :FOUND
-)
-
-:: 2. Sprawdz oficjalny launcher py.exe
-where py >nul 2>&1
-if %errorlevel% equ 0 (
-    set "PY_CMD=py"
-    goto :FOUND
-)
-
-:: 3. Sprawdz python3
-where python3 >nul 2>&1
-if %errorlevel% equ 0 (
-    set "PY_CMD=python3"
-    goto :FOUND
-)
-
-:: 4. Sprawdz w folderze biezacego uzytkownika (standardowy instalator AppData)
-for /d %%i in ("%LOCALAPPDATA%\Programs\Python\Python3*") do (
-    if exist "%%i\python.exe" (
-        set "PY_CMD=%%i\python.exe"
-        goto :FOUND
-    )
-)
-
-:: 5. Sprawdz w Program Files
-for /d %%i in ("%ProgramFiles%\Python3*") do (
-    if exist "%%i\python.exe" (
-        set "PY_CMD=%%i\python.exe"
-        goto :FOUND
-    )
-)
-
-:: 6. Sprawdz w Program Files (x86)
-for /d %%i in ("%ProgramFiles(x86)%\Python3*") do (
-    if exist "%%i\python.exe" (
-        set "PY_CMD=%%i\python.exe"
-        goto :FOUND
-    )
-)
-
-:: 7. Sprawdz w WindowsApps (Microsoft Store)
-if exist "%LOCALAPPDATA%\Microsoft\WindowsApps\python.exe" (
-    set "PY_CMD=%LOCALAPPDATA%\Microsoft\WindowsApps\python.exe"
-    goto :FOUND
-)
-
-:: ==============================================================
-:: Jezeli zupelnie nie znaleziono
-:: ==============================================================
 echo ================================================================
-echo [BLAD] Python nie zostal wykryty w zmiennych srodowiskowych!
+echo    SMSAPI Studio - Uruchamianie...
 echo ================================================================
 echo.
-echo Aby to naprawic w 10 sekund:
-echo 1. Uruchom ponownie instalator Pythona.
-echo 2. Wybierz opcje "Modify" (Modyfikuj).
-echo 3. Na dole pierwszego okna ZAZNACZ: [x] "Add Python to PATH".
+
+:: 1. Bezposrednia proba uruchomienia przez oficjalny launcher py (zawsze obecny w C:\Windows\py.exe)
+if exist "C:\Windows\py.exe" (
+    echo [OK] Znaleziono Python Launcher (py.exe)
+    set "PY_CMD=C:\Windows\py.exe"
+    goto :RUN
+)
+
+:: 2. Sprawdz py w sciezce
+py --version >nul 2>&1
+if %errorlevel% equ 0 (
+    echo [OK] Znaleziono polecenie py
+    set "PY_CMD=py"
+    goto :RUN
+)
+
+:: 3. Sprawdz python w sciezce
+python --version >nul 2>&1
+if %errorlevel% equ 0 (
+    echo [OK] Znaleziono polecenie python
+    set "PY_CMD=python"
+    goto :RUN
+)
+
+:: 4. Sprawdz standardowe foldery instalacyjne Python
+for /d %%D in ("%LOCALAPPDATA%\Programs\Python\Python*") do (
+    if exist "%%D\python.exe" (
+        echo [OK] Znaleziono Python w %%D
+        set "PY_CMD=%%D\python.exe"
+        goto :RUN
+    )
+)
+
+for /d %%D in ("C:\Program Files\Python*") do (
+    if exist "%%D\python.exe" (
+        echo [OK] Znaleziono Python w %%D
+        set "PY_CMD=%%D\python.exe"
+        goto :RUN
+    )
+)
+
+for /d %%D in ("C:\Python*") do (
+    if exist "%%D\python.exe" (
+        echo [OK] Znaleziono Python w %%D
+        set "PY_CMD=%%D\python.exe"
+        goto :RUN
+    )
+)
+
+echo [INFO] Proba uruchomienia bezposredniego...
+start "" launcher.pyw 2>nul
+if %errorlevel% equ 0 (
+    echo [OK] Uruchomiono aplikacje!
+    exit
+)
+
+echo.
+echo [UWAGA] Windows nie odswiezyl jeszcze sciezki po instalacji Pythona.
+echo.
+echo Szybkie rozwiazanie (wybierz jedno):
+echo 1. Kliknij dwukrotnie w plik 'launcher.pyw' w tym folderze.
+echo 2. Lub zrestartuj komputer / zamknij i otworz ten folder ponownie.
 echo.
 pause
 exit /b 1
 
-:FOUND
-:: Ustal katalog i wersje pythonw
-set "PYW_CMD=%PY_CMD%"
-if "%PY_CMD%"=="python" set "PYW_CMD=pythonw"
-if "%PY_CMD%"=="py" set "PYW_CMD=pyw"
+:RUN
+echo [1/2] Sprawdzanie bibliotek...
+"%PY_CMD%" -m pip install -r requirements_app.txt --quiet --disable-pip-version-check 2>nul
 
-:: Instalacja brakujacych bibliotek w tle
-echo [SMSAPI Studio] Weryfikacja bibliotek...
-"%PY_CMD%" -m pip install -r requirements_app.txt --quiet --disable-pip-version-check >nul 2>&1
+echo [2/2] Otwieranie aplikacji w przegladarce...
+start "" "%PY_CMD%" desktop_launcher.py
 
-:: Uruchomienie aplikacji
-echo [SMSAPI Studio] Uruchamianie aplikacji w przegladarce...
-start "" "%PYW_CMD%" launcher.pyw 2>nul || start "" "%PY_CMD%" desktop_launcher.py
-
-:: Zamknij okno konsoli
+:: Krotkie odczekanie i zamkniecie okna
+timeout /t 2 >nul
 exit
