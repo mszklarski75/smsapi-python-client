@@ -77,3 +77,8 @@ Gotowy plik wykonywalny znajdziesz w katalogu `dist/SMSAPI_Studio/`.
     * Bezpieczne lokalne przechowywanie tokenu OAuth SMSAPI.
     * Wybór platformy (`smsapi.pl`, `smsapi.com`, `smsapi.bg`, `smsapi.se`).
     * Testowanie połączenia jednym kliknięciem.
+
+11. **🌐 Zdalny Dostęp z Internetu (Cloudflare Tunnel):**
+    * Bezpieczne udostępnianie panelu poza sieć lokalną bez publicznego IP i bez przekierowania portów na routerze.
+    * Gotowy skrypt `start_tunnel.bat` automatycznie pobiera i zestawia szyfrowany tunel HTTPS.
+
