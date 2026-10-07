@@ -34,27 +34,6 @@
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
         .dark .custom-scrollbar::-webkit-scrollbar-thumb { background: #475569; }
-
-        .quick-user-pill {
-            padding: 0.625rem;
-            border-radius: 0.75rem;
-            text-align: left;
-            cursor: pointer;
-            transition: background-color 0.1s, border-color 0.1s;
-            border: 1px solid #e2e8f0;
-            background: #f8fafc;
-        }
-        .dark .quick-user-pill {
-            border-color: #334155;
-            background: rgba(30, 41, 59, 0.6);
-        }
-        .quick-user-pill.active {
-            border: 2px solid #3b82f6 !important;
-            background: #eff6ff !important;
-        }
-        .dark .quick-user-pill.active {
-            background: rgba(30, 58, 138, 0.45) !important;
-        }
     </style>
 </head>
 <body class="h-full flex flex-col text-slate-800 dark:text-slate-100 antialiased overflow-hidden">
@@ -67,31 +46,16 @@
                     <i class="fa-solid fa-paper-plane"></i>
                 </div>
                 <h2 class="text-2xl font-black tracking-tight text-slate-800 dark:text-white">SMSAPI Studio</h2>
-                <p class="text-xs text-slate-500 dark:text-slate-400">Wybierz swoje konto i zaloguj się do panelu</p>
+                <p class="text-xs text-slate-500 dark:text-slate-400">Wybierz swoje konto z listy i wpisz hasło</p>
             </div>
 
             <form onsubmit="handleLoginSubmit(event)" class="space-y-4">
-                <!-- Szybki wybór profilu za pomocą przycisków -->
+                <!-- Lista rozwijana z wszystkimi kontami -->
                 <div>
-                    <label class="block text-xs font-semibold uppercase text-slate-500 mb-1.5">Wybierz profil użytkownika</label>
-                    <div id="quickUserPills" class="grid grid-cols-2 gap-2.5 mb-2.5">
-                        <button type="button" onclick="selectQuickUser('admin')" id="pill-admin" class="quick-user-pill active">
-                            <div class="text-xs font-bold text-blue-700 dark:text-blue-300 flex items-center gap-1.5">
-                                <span>👑</span> Administrator
-                            </div>
-                            <div class="text-[10px] text-slate-500 dark:text-slate-400 font-mono mt-0.5">login: admin</div>
-                        </button>
-                        <button type="button" onclick="selectQuickUser('pracownik')" id="pill-pracownik" class="quick-user-pill">
-                            <div class="text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1.5">
-                                <span>👤</span> Dział Obsługi
-                            </div>
-                            <div class="text-[10px] text-slate-500 dark:text-slate-400 font-mono mt-0.5">login: pracownik</div>
-                        </button>
-                    </div>
-
-                    <!-- Lista rozwijana z wszystkimi kontami -->
+                    <label class="block text-xs font-semibold uppercase text-slate-500 mb-1.5">Wybierz użytkownika</label>
                     <div class="relative">
-                        <select id="loginUsername" onchange="onSelectUserChange()" required class="w-full px-3.5 py-2.5 text-sm rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700 outline-none focus:ring-2 focus:ring-blue-500 font-medium">
+                        <i class="fa-solid fa-user-circle absolute left-3.5 top-3.5 text-slate-400 text-sm"></i>
+                        <select id="loginUsername" required class="w-full pl-10 pr-4 py-2.5 text-sm rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700 outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-800 dark:text-slate-100 cursor-pointer">
                             <option value="admin" selected>👑 Administrator (admin)</option>
                             <option value="pracownik">👤 Dział Obsługi Klienta (pracownik)</option>
                         </select>
@@ -1442,55 +1406,10 @@
                             ${u.role === 'admin' ? '👑' : '👤'} ${u.full_name} (${u.username})
                         </option>
                     `).join('');
-                    renderQuickUserPills(data.users);
                 }
             } catch (err) {
                 console.warn("Could not load dynamic usernames, keeping default options:", err);
             }
-        }
-
-        function renderQuickUserPills(users) {
-            const container = document.getElementById('quickUserPills');
-            if (!container) return;
-            const selectVal = document.getElementById('loginUsername').value;
-            const quickUsers = users.slice(0, 4);
-            container.className = quickUsers.length > 2 ? 'grid grid-cols-2 gap-2 mb-2.5' : 'grid grid-cols-2 gap-2.5 mb-2.5';
-            container.innerHTML = quickUsers.map(u => {
-                const isSelected = u.username === selectVal;
-                return `
-                    <button type="button" onclick="selectQuickUser('${u.username}')" id="pill-${u.username}" class="quick-user-pill ${isSelected ? 'active' : ''}">
-                        <div class="text-xs font-bold flex items-center gap-1.5 truncate ${isSelected ? 'text-blue-700 dark:text-blue-300' : 'text-slate-700 dark:text-slate-200'}">
-                            <span>${u.role === 'admin' ? '👑' : '👤'}</span>
-                            <span class="truncate">${u.full_name}</span>
-                        </div>
-                        <div class="text-[10px] text-slate-500 dark:text-slate-400 font-mono mt-0.5">login: ${u.username}</div>
-                    </button>
-                `;
-            }).join('');
-        }
-
-        function selectQuickUser(username) {
-            const select = document.getElementById('loginUsername');
-            if (select) {
-                select.value = username;
-                onSelectUserChange();
-            }
-            const pwdInput = document.getElementById('loginPassword');
-            if (pwdInput) {
-                pwdInput.focus();
-            }
-        }
-
-        function onSelectUserChange() {
-            const selectVal = document.getElementById('loginUsername').value;
-            document.querySelectorAll('.quick-user-pill').forEach(pill => {
-                const id = pill.id.replace('pill-', '');
-                if (id === selectVal) {
-                    pill.classList.add('active');
-                } else {
-                    pill.classList.remove('active');
-                }
-            });
         }
 
         function togglePasswordVisibility() {
