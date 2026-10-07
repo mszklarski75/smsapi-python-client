@@ -8,6 +8,7 @@ Optimized for multi-user high-speed concurrent execution (WAL mode, connection p
 
 import os
 import sys
+import re
 import json
 import sqlite3
 import datetime
@@ -889,39 +890,70 @@ def list_short_urls():
         return jsonify({'success': False, 'error': str(e), 'links': []}), 400
 
 
+def slugify_suffix(text: str) -> str:
+    if not text:
+        return ''
+    pl_trans = str.maketrans({
+        'ą': 'a', 'ć': 'c', 'ę': 'e', 'ł': 'l', 'ń': 'n', 'ó': 'o', 'ś': 's', 'ź': 'z', 'ż': 'z',
+        'Ą': 'a', 'Ć': 'c', 'Ę': 'e', 'Ł': 'l', 'Ń': 'n', 'Ó': 'o', 'Ś': 's', 'Ź': 'z', 'Ż': 'z'
+    })
+    cleaned = text.translate(pl_trans).lower()
+    cleaned = re.sub(r'[^a-z0-9_-]+', '-', cleaned)
+    cleaned = re.sub(r'-+', '-', cleaned).strip('-_')
+    return cleaned
+
+
 @app.route('/api/shorturl', methods=['POST'])
 def create_short_url():
     data = request.json or {}
     url = data.get('url', '').strip()
+    custom_suffix = data.get('suffix', '').strip()
     name = data.get('name', '').strip()
+
     if not url:
         return jsonify({'success': False, 'error': 'Adres docelowy URL jest wymagany.'}), 400
+
+    if not url.startswith(('http://', 'https://')):
+        url = 'https://' + url
 
     try:
         client = get_smsapi_client()
         params = {'url': url}
+
+        # SMSAPI expects 'name' to be the URL slug / suffix (lowercase letters, numbers, hyphens)
+        raw_slug = custom_suffix or name
+        slug = slugify_suffix(raw_slug) if raw_slug else None
+
+        if slug:
+            params['name'] = slug
         if name:
-            params['name'] = name
+            params['description'] = name
 
         res = client.shorturl.create_short_url(**params)
         short_url = getattr(res, 'short_url', None) or getattr(res, 'url', None)
         link_id = getattr(res, 'id', None)
 
-        if not short_url and link_id:
+        if not short_url and slug:
+            short_url = f"https://idz.do/{slug}"
+        elif not short_url and link_id:
             short_url = f"https://idz.do/{link_id}"
         elif short_url and not short_url.startswith('http'):
             short_url = f"https://{short_url}"
 
         return jsonify({
             'success': True,
-            'message': 'Skrócony link został utworzony!',
+            'message': 'Skrócony link został pomyślnie utworzony!',
             'short_url': short_url,
             'id': link_id,
-            'name': name,
+            'slug': slug,
+            'name': name or slug,
             'original_url': url
         })
     except Exception as e:
-        return jsonify({'success': False, 'error': f'Błąd API SMSAPI: {str(e)}'}), 400
+        err_msg = str(e)
+        if 'Suffix contains unsupported chars' in err_msg or 'begins with a capital letter' in err_msg:
+            err_msg = 'Końcówka linku idz.do może zawierać tylko małe litery (a-z), cyfry i myślniki bez spacji i polskich znaków.'
+        return jsonify({'success': False, 'error': f'{err_msg}'}), 400
 
 
 # ==========================================================

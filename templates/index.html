@@ -856,14 +856,22 @@
 
                         <form onsubmit="handleCreateShortUrl(event)" class="space-y-3">
                             <div>
-                                <label class="block text-xs font-semibold uppercase text-slate-500 mb-1">Docelowy adres URL</label>
-                                <input type="url" id="shortUrlTarget" placeholder="https://twojastrona.pl/oferta-specjalna" required class="w-full px-3.5 py-2 text-sm rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700 outline-none">
+                                <label class="block text-xs font-semibold uppercase text-slate-500 mb-1">Docelowy adres URL <span class="text-rose-500">*</span></label>
+                                <input type="url" id="shortUrlTarget" placeholder="https://twojastrona.pl/oferta-specjalna" required class="w-full px-3.5 py-2.5 text-sm rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700 outline-none focus:ring-2 focus:ring-cyan-500">
                             </div>
                             <div>
-                                <label class="block text-xs font-semibold uppercase text-slate-500 mb-1">Etykieta / Nazwa linku (opcjonalnie)</label>
-                                <input type="text" id="shortUrlName" placeholder="np. Kampania Jesień 2026" class="w-full px-3.5 py-2 text-sm rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700 outline-none">
+                                <label class="block text-xs font-semibold uppercase text-slate-500 mb-1">Własna końcówka linku / Slug (opcjonalnie)</label>
+                                <div class="relative flex items-center">
+                                    <span class="absolute left-3 font-mono text-xs text-slate-400 select-none">https://idz.do/</span>
+                                    <input type="text" id="shortUrlSuffix" oninput="sanitizeSlugInput(this)" placeholder="np. promocja-jesien" class="w-full pl-32 pr-3.5 py-2 text-sm font-mono rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700 outline-none focus:ring-2 focus:ring-cyan-500">
+                                </div>
+                                <p class="text-[10px] text-slate-400 mt-1">Zostaw puste, aby wygenerować losowy krótki link (np. idz.do/ab12).</p>
                             </div>
-                            <button type="submit" id="btnCreateShortUrl" class="w-full py-2.5 bg-cyan-600 hover:bg-cyan-700 text-white rounded-xl font-semibold text-sm transition-colors flex items-center justify-center gap-2">
+                            <div>
+                                <label class="block text-xs font-semibold uppercase text-slate-500 mb-1">Etykieta / Opis (opcjonalnie)</label>
+                                <input type="text" id="shortUrlName" placeholder="np. Kampania Jesień 2026" class="w-full px-3.5 py-2 text-sm rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700 outline-none focus:ring-2 focus:ring-cyan-500">
+                            </div>
+                            <button type="submit" id="btnCreateShortUrl" class="w-full py-2.5 bg-cyan-600 hover:bg-cyan-700 text-white rounded-xl font-bold text-sm shadow-md shadow-cyan-500/20 transition-all flex items-center justify-center gap-2">
                                 <i class="fa-solid fa-scissors"></i> Skróć link do idz.do
                             </button>
                         </form>
@@ -2576,9 +2584,22 @@
         }
 
         // Short URL & HLR
+        function sanitizeSlugInput(input) {
+            const plMap = {
+                'ą':'a', 'ć':'c', 'ę':'e', 'ł':'l', 'ń':'n', 'ó':'o', 'ś':'s', 'ź':'z', 'ż':'z',
+                'Ą':'a', 'Ć':'c', 'Ę':'e', 'Ł':'l', 'Ń':'n', 'Ó':'o', 'Ś':'s', 'Ź':'z', 'Ż':'z'
+            };
+            let val = input.value;
+            for (let k in plMap) {
+                val = val.replaceAll(k, plMap[k]);
+            }
+            input.value = val.toLowerCase().replace(/[^a-z0-9_-]/g, '-').replace(/-+/g, '-');
+        }
+
         async function handleCreateShortUrl(e) {
             e.preventDefault();
             const url = document.getElementById('shortUrlTarget').value.trim();
+            const suffix = document.getElementById('shortUrlSuffix')?.value.trim() || '';
             const name = document.getElementById('shortUrlName').value.trim();
             const btn = document.getElementById('btnCreateShortUrl');
             const resultBox = document.getElementById('shortUrlResult');
@@ -2590,7 +2611,7 @@
                 const res = await fetch('/api/shorturl', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ url, name })
+                    body: JSON.stringify({ url, suffix, name })
                 });
                 const data = await res.json();
                 resultBox.classList.remove('hidden');
