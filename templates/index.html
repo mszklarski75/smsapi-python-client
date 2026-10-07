@@ -901,6 +901,42 @@
                         <div id="hlrResultBox" class="hidden p-4 rounded-xl bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-700 text-xs space-y-1"></div>
                     </div>
                 </div>
+
+                <!-- Tabela utworzonych linków idz.do i analityka kliknięć -->
+                <div class="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-4">
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div>
+                            <h3 class="font-bold text-base text-slate-800 dark:text-white flex items-center gap-2">
+                                <i class="fa-solid fa-chart-line text-cyan-600"></i> Twoje skrócone linki i analityka kliknięć (idz.do)
+                            </h3>
+                            <p class="text-xs text-slate-500 mt-0.5">Przeglądaj wszystkie utworzone linki i sprawdzaj na żywo liczbę kliknięć odbiorców.</p>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <button onclick="fetchShortUrls()" class="px-3.5 py-2 border border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors">
+                                <i class="fa-solid fa-arrows-rotate text-cyan-600"></i> Odśwież statystyki
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="overflow-x-auto rounded-xl border border-slate-100 dark:border-slate-700">
+                        <table class="w-full text-left text-xs">
+                            <thead class="bg-slate-50 dark:bg-slate-700/60 uppercase font-bold text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700">
+                                <tr>
+                                    <th class="py-3 px-3.5">Etykieta / Nazwa</th>
+                                    <th class="py-3 px-3.5">Skrócony link (idz.do)</th>
+                                    <th class="py-3 px-3.5">Docelowy adres URL</th>
+                                    <th class="py-3 px-3.5 text-center">Liczba kliknięć</th>
+                                    <th class="py-3 px-3.5 text-right">Akcje</th>
+                                </tr>
+                            </thead>
+                            <tbody id="shortUrlsTableBody" class="divide-y divide-slate-100 dark:divide-slate-700/50 font-medium">
+                                <tr>
+                                    <td colspan="5" class="py-8 text-center text-slate-400">Ładowanie listy linków...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </section>
 
             <!-- TAB 8: BLACKLIST -->
@@ -1243,6 +1279,24 @@
         </div>
     </div>
 
+    <!-- Modal: Raport i analityka kliknięć dla linku idz.do -->
+    <div id="clicksModal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-700 space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-700 pb-3">
+                <h3 class="font-bold text-base flex items-center gap-2">
+                    <i class="fa-solid fa-chart-pie text-cyan-600"></i> Analityka kliknięć linku (idz.do)
+                </h3>
+                <button onclick="closeClicksModal()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <div id="clicksModalContent" class="space-y-3 max-h-96 overflow-y-auto custom-scrollbar text-xs">
+                <!-- Dynamic click statistics and log -->
+            </div>
+            <div class="text-right pt-2 border-t border-slate-100 dark:border-slate-700">
+                <button onclick="closeClicksModal()" class="px-4 py-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-xl font-semibold text-xs">Zamknij</button>
+            </div>
+        </div>
+    </div>
+
     <!-- JAVASCRIPT APPLICATION LOGIC -->
     <script>
         let currentUser = null;
@@ -1293,6 +1347,7 @@
             if (tabId === 'templates') renderTemplatesGrid(savedTemplates);
             if (tabId === 'history') fetchHistory();
             if (tabId === 'contacts') fetchContacts();
+            if (tabId === 'shorturl-hlr') fetchShortUrls();
             if (tabId === 'blacklist') fetchBlacklist();
             if (tabId === 'settings') { fetchConfig(); fetchSenders(); fetchUsers(); }
         }
@@ -2641,6 +2696,7 @@
                         </div>
                     `;
                     Swal.fire({ icon: 'success', title: 'Skrócono link!', text: data.short_url, timer: 1500, showConfirmButton: false });
+                    fetchShortUrls();
                 } else {
                     resultBox.className = 'p-3.5 rounded-xl bg-rose-50 dark:bg-rose-900/30 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-xs font-semibold';
                     resultBox.innerHTML = `<div class="flex items-start gap-2"><i class="fa-solid fa-triangle-exclamation mt-0.5 text-rose-500"></i><div>${data.error || 'Nie udało się wygenerować skróconego linku.'}</div></div>`;
@@ -2668,12 +2724,151 @@
         }
 
         function insertShortUrlToSms(url) {
-            const textarea = document.getElementById('smsMessage');
+            const textarea = document.getElementById('smsMessageText');
             if (textarea) {
-                textarea.value = (textarea.value ? textarea.value.trim() + ' ' : '') + url;
+                const currentVal = textarea.value.trim();
+                textarea.value = (currentVal ? currentVal + ' ' : '') + url;
                 switchTab('sms-send');
-                updateCounters();
+                calculateSmsMetrics();
                 Swal.fire({ icon: 'success', title: 'Wstawiono do SMS!', text: `Dodano ${url} do treści wiadomości`, timer: 1200, showConfirmButton: false });
+            }
+        }
+
+        // Short URLs List & Click Tracking Handlers
+        let savedShortUrls = [];
+
+        async function fetchShortUrls() {
+            try {
+                const tbody = document.getElementById('shortUrlsTableBody');
+                if (tbody) {
+                    tbody.innerHTML = `<tr><td colspan="5" class="py-8 text-center text-slate-400"><i class="fa-solid fa-spinner fa-spin mr-2 text-cyan-600"></i>Pobieranie listy skróconych linków i kliknięć...</td></tr>`;
+                }
+                const res = await fetch('/api/shorturl');
+                const data = await res.json();
+                if (data.success) {
+                    savedShortUrls = data.links || [];
+                    renderShortUrlsTable(savedShortUrls);
+                } else {
+                    if (tbody) {
+                        tbody.innerHTML = `<tr><td colspan="5" class="py-8 text-center text-slate-400 font-medium">Brak linków lub błąd API: ${data.error || ''}</td></tr>`;
+                    }
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        function renderShortUrlsTable(list) {
+            const tbody = document.getElementById('shortUrlsTableBody');
+            if (!tbody) return;
+
+            if (!list || list.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" class="py-8 text-center text-slate-400">Brak skróconych linków na Twoim koncie SMSAPI. Utwórz pierwszy link w formularzu powyżej!</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = list.map(l => `
+                <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors">
+                    <td class="py-3 px-3.5 font-bold text-slate-800 dark:text-slate-100">
+                        ${l.name || '<span class="text-slate-400 font-normal italic">Bez nazwy</span>'}
+                    </td>
+                    <td class="py-3 px-3.5">
+                        <a href="${l.short_url}" target="_blank" class="font-mono font-bold text-cyan-600 dark:text-cyan-400 hover:underline flex items-center gap-1.5">
+                            <i class="fa-solid fa-link text-[10px]"></i> ${l.short_url}
+                        </a>
+                    </td>
+                    <td class="py-3 px-3.5 max-w-xs truncate text-slate-500 dark:text-slate-400" title="${l.url}">
+                        ${l.url}
+                    </td>
+                    <td class="py-3 px-3.5 text-center">
+                        <div class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full font-bold text-xs bg-cyan-100 text-cyan-800 dark:bg-cyan-900/50 dark:text-cyan-300">
+                            <i class="fa-solid fa-chart-column text-[10px]"></i> ${l.hits || 0}
+                            ${l.hits_unique ? `<span class="text-[10px] opacity-75 font-normal">(${l.hits_unique} unik.)</span>` : ''}
+                        </div>
+                    </td>
+                    <td class="py-3 px-3.5 text-right whitespace-nowrap">
+                        <div class="flex items-center justify-end gap-1.5">
+                            <button onclick="copyShortUrl('${l.short_url}')" title="Kopiuj link do schowka" class="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 text-slate-700 dark:text-slate-300 transition-colors">
+                                <i class="fa-solid fa-copy"></i>
+                            </button>
+                            <button onclick="insertShortUrlToSms('${l.short_url}')" title="Wstaw ten link do wiadomości SMS" class="px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:hover:bg-blue-900/60 dark:text-blue-300 font-bold text-xs flex items-center gap-1 transition-colors">
+                                <i class="fa-solid fa-paper-plane text-[10px]"></i> SMS
+                            </button>
+                            <button onclick="showLinkClicks('${l.id}', '${l.name || l.short_url}')" title="Zobacz analitykę kliknięć i urządzeń" class="p-1.5 rounded-lg bg-cyan-50 dark:bg-cyan-900/30 hover:bg-cyan-100 text-cyan-700 dark:text-cyan-300 transition-colors">
+                                <i class="fa-solid fa-chart-pie"></i>
+                            </button>
+                            <button onclick="deleteShortUrl('${l.id}')" title="Usuń link" class="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/30 transition-colors">
+                                <i class="fa-solid fa-trash"></i>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        async function showLinkClicks(id, name) {
+            const modal = document.getElementById('clicksModal');
+            const content = document.getElementById('clicksModalContent');
+            if (!modal || !content) return;
+
+            modal.classList.remove('hidden');
+            content.innerHTML = `<div class="py-8 text-center text-slate-400"><i class="fa-solid fa-spinner fa-spin mr-2"></i>Ładowanie historii kliknięć...</div>`;
+
+            try {
+                const res = await fetch(`/api/shorturl/${id}/clicks`);
+                const data = await res.json();
+                if (data.success && data.clicks && data.clicks.length > 0) {
+                    content.innerHTML = `
+                        <div class="font-bold text-slate-700 dark:text-slate-200 mb-2">Łącznie zarejestrowanych kliknięć: ${data.clicks.length}</div>
+                        <div class="space-y-2">
+                            ${data.clicks.map(c => `
+                                <div class="p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-700/40 flex items-center justify-between">
+                                    <div>
+                                        <div class="font-semibold text-slate-800 dark:text-slate-100">${c.date_hit || 'Brak daty'}</div>
+                                        <div class="text-[11px] text-slate-500">${c.phone_number ? `Odbiorca: <b>${c.phone_number}</b>` : 'Anonimowe kliknięcie'}</div>
+                                    </div>
+                                    <div class="text-right text-[11px] font-mono text-slate-600 dark:text-slate-300">
+                                        <div>${c.device || 'Urządzenie'} / ${c.os || 'System'}</div>
+                                        <div class="text-slate-400">${c.browser || ''}</div>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    `;
+                } else {
+                    content.innerHTML = `<div class="py-8 text-center text-slate-400"><i class="fa-solid fa-info-circle mr-1.5 text-cyan-500"></i>Ten link nie został jeszcze kliknięty przez żadnego odbiorcę.</div>`;
+                }
+            } catch (e) {
+                content.innerHTML = `<div class="py-6 text-center text-rose-500">Błąd pobierania danych kliknięć: ${e.message}</div>`;
+            }
+        }
+
+        function closeClicksModal() {
+            document.getElementById('clicksModal')?.classList.add('hidden');
+        }
+
+        async function deleteShortUrl(id) {
+            const confirm = await Swal.fire({
+                title: 'Usunąć ten skrócony link?',
+                text: 'Link przestanie przekierowywać użytkowników.',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'Tak, usuń',
+                cancelButtonText: 'Anuluj'
+            });
+            if (!confirm.isConfirmed) return;
+
+            try {
+                const res = await fetch(`/api/shorturl/${id}`, { method: 'DELETE' });
+                const data = await res.json();
+                if (data.success) {
+                    Swal.fire({ icon: 'success', title: 'Usunięto link!', timer: 1200, showConfirmButton: false });
+                    fetchShortUrls();
+                } else {
+                    Swal.fire({ icon: 'error', title: 'Błąd', text: data.error });
+                }
+            } catch (e) {
+                console.error(e);
             }
         }
 

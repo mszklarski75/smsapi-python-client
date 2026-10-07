@@ -884,10 +884,58 @@ def list_short_urls():
     try:
         client = get_smsapi_client()
         urls = client.shorturl.list_short_urls()
-        res_list = [{'id': getattr(u, 'id', ''), 'name': getattr(u, 'name', ''), 'url': getattr(u, 'url', ''), 'short_url': getattr(u, 'short_url', ''), 'hits': getattr(u, 'hits', 0)} for u in urls]
+        res_list = []
+        for u in urls:
+            s_url = getattr(u, 'short_url', '')
+            link_id = getattr(u, 'id', '')
+            name = getattr(u, 'name', '') or getattr(u, 'description', '')
+            if not s_url and link_id:
+                s_url = f"https://idz.do/{link_id}"
+            elif s_url and not s_url.startswith('http'):
+                s_url = f"https://{s_url}"
+
+            res_list.append({
+                'id': link_id,
+                'name': name or link_id,
+                'url': getattr(u, 'url', ''),
+                'short_url': s_url,
+                'hits': getattr(u, 'hits', 0) or 0,
+                'hits_unique': getattr(u, 'hits_unique', 0) or 0,
+                'expire': getattr(u, 'expire', None),
+                'type': getattr(u, 'type', 'link')
+            })
         return jsonify({'success': True, 'links': res_list})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e), 'links': []}), 400
+
+
+@app.route('/api/shorturl/<link_id>', methods=['DELETE'])
+def delete_short_url(link_id):
+    try:
+        client = get_smsapi_client()
+        client.shorturl.remove_short_url(id=link_id)
+        return jsonify({'success': True, 'message': 'Skrócony link został usunięty.'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': f'Błąd usuwania linku: {str(e)}'}), 400
+
+
+@app.route('/api/shorturl/<link_id>/clicks', methods=['GET'])
+def get_short_url_clicks(link_id):
+    try:
+        client = get_smsapi_client()
+        clicks_res = client.shorturl.get_clicks(links=link_id)
+        clicks_list = []
+        for c in clicks_res:
+            clicks_list.append({
+                'date_hit': getattr(c, 'date_hit', ''),
+                'phone_number': getattr(c, 'phone_number', '') or (getattr(getattr(c, 'message', None), 'recipient', '') if hasattr(c, 'message') else ''),
+                'os': getattr(c, 'os', ''),
+                'browser': getattr(c, 'browser', ''),
+                'device': getattr(c, 'device', '')
+            })
+        return jsonify({'success': True, 'clicks': clicks_list})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e), 'clicks': []}), 400
 
 
 def slugify_suffix(text: str) -> str:
