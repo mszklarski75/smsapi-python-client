@@ -1067,10 +1067,14 @@ def delete_template(id):
 
 
 # ==========================================================
-# API Routes: Shutdown Application
+# API Routes: Shutdown Application (Only Localhost)
 # ==========================================================
 @app.route('/api/shutdown', methods=['POST'])
 def shutdown_app():
+    # Only allow shutdown if requested directly from the host machine (localhost)
+    if request.remote_addr not in ('127.0.0.1', 'localhost', '::1'):
+        return jsonify({'success': False, 'error': 'Zdalne wyłączanie serwera jest zablokowane ze względów bezpieczeństwa.'}), 403
+
     def stop_server():
         time.sleep(0.5)
         os._exit(0)
