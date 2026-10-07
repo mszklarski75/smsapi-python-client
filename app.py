@@ -923,19 +923,43 @@ def delete_short_url(link_id):
 def get_short_url_clicks(link_id):
     try:
         client = get_smsapi_client()
-        clicks_res = client.shorturl.get_clicks(links=link_id)
+
+        # 1. Fetch detailed clicks
         clicks_list = []
-        for c in clicks_res:
-            clicks_list.append({
-                'date_hit': getattr(c, 'date_hit', ''),
-                'phone_number': getattr(c, 'phone_number', '') or (getattr(getattr(c, 'message', None), 'recipient', '') if hasattr(c, 'message') else ''),
-                'os': getattr(c, 'os', ''),
-                'browser': getattr(c, 'browser', ''),
-                'device': getattr(c, 'device', '')
-            })
-        return jsonify({'success': True, 'clicks': clicks_list})
+        try:
+            clicks_res = client.shorturl.get_clicks(links=[link_id])
+            for c in clicks_res:
+                recipient = ''
+                if hasattr(c, 'message') and getattr(c, 'message', None):
+                    recipient = getattr(c.message, 'recipient', '') or ''
+                clicks_list.append({
+                    'date_hit': getattr(c, 'date_hit', ''),
+                    'phone_number': getattr(c, 'phone_number', '') or recipient,
+                    'os': getattr(c, 'os', '') or 'Nieznany',
+                    'browser': getattr(c, 'browser', '') or 'Nieznana',
+                    'device': getattr(c, 'device', '') or 'Inne'
+                })
+        except Exception as ce:
+            print("Clicks detail fetch exception:", ce)
+
+        # 2. Fetch device summary
+        devices = {}
+        try:
+            dev_res = client.shorturl.get_clicks_by_mobile_device(links=[link_id])
+            for d in dev_res:
+                devices = {
+                    'android': getattr(d, 'android', 0) or 0,
+                    'ios': getattr(d, 'ios', 0) or 0,
+                    'wp': getattr(d, 'wp', 0) or 0,
+                    'other': getattr(d, 'other', 0) or 0,
+                    'sum': getattr(d, 'sum', 0) or 0
+                }
+        except Exception as de:
+            print("Device summary fetch exception:", de)
+
+        return jsonify({'success': True, 'clicks': clicks_list, 'devices': devices})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e), 'clicks': []}), 400
+        return jsonify({'success': False, 'error': str(e), 'clicks': [], 'devices': {}}), 400
 
 
 def slugify_suffix(text: str) -> str:

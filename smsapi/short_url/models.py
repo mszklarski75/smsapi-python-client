@@ -17,7 +17,9 @@ class ShortUrlClickByMobileDevice(Model):
 
     @classmethod
     def from_dict(cls, data, **kwargs):
-        data.update(data.pop('clicks', {}))
+        clicks_data = data.pop('clicks', None)
+        if clicks_data and isinstance(clicks_data, dict):
+            data.update(clicks_data)
         return super(ShortUrlClickByMobileDevice, cls).from_dict(data, **kwargs)
 
 
@@ -42,7 +44,11 @@ class ShortUrlClick(Model):
     @classmethod
     def from_dict(cls, data, **kwargs):
         data['idzdo_id'] = data.pop('idz_do_id', None)
-        data['message'] = ShortUrlClickMessage.from_dict(data.pop('message', {}))
+        msg_data = data.pop('message', None)
+        if msg_data and isinstance(msg_data, dict):
+            data['message'] = ShortUrlClickMessage.from_dict(msg_data)
+        else:
+            data['message'] = None
         return super(ShortUrlClick, cls).from_dict(data, **kwargs)
 
 
