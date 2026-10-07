@@ -12,13 +12,6 @@
             theme: {
                 extend: {
                     colors: {
-                        brand: {
-                            50: '#ecfdf5',
-                            100: '#d1fae5',
-                            500: '#10b981',
-                            600: '#059669',
-                            700: '#047857',
-                        },
                         smsapi: {
                             light: '#00b0ff',
                             DEFAULT: '#0084ff',
@@ -46,6 +39,47 @@
 </head>
 <body class="h-full flex flex-col text-slate-800 dark:text-slate-100 antialiased overflow-hidden">
 
+    <!-- LOGIN OVERLAY SCREEN (Shown if not logged in) -->
+    <div id="loginScreen" class="fixed inset-0 bg-slate-900/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-800 rounded-3xl max-w-md w-full p-8 shadow-2xl border border-slate-200 dark:border-slate-700 space-y-6">
+            <div class="text-center space-y-2">
+                <div class="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white text-2xl shadow-lg shadow-blue-500/25">
+                    <i class="fa-solid fa-paper-plane"></i>
+                </div>
+                <h2 class="text-2xl font-black tracking-tight text-slate-800 dark:text-white">SMSAPI Studio</h2>
+                <p class="text-xs text-slate-500 dark:text-slate-400">Zaloguj się do firmowego centrum wysyłki SMS</p>
+            </div>
+
+            <form onsubmit="handleLoginSubmit(event)" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold uppercase text-slate-500 mb-1">Login / Nazwa użytkownika</label>
+                    <div class="relative">
+                        <i class="fa-solid fa-user absolute left-3.5 top-3 text-slate-400 text-xs"></i>
+                        <input type="text" id="loginUsername" required placeholder="np. admin lub pracownik" class="w-full pl-9 pr-3.5 py-2.5 text-sm rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700 outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold uppercase text-slate-500 mb-1">Hasło</label>
+                    <div class="relative">
+                        <i class="fa-solid fa-lock absolute left-3.5 top-3 text-slate-400 text-xs"></i>
+                        <input type="password" id="loginPassword" required placeholder="Wpisz hasło..." class="w-full pl-9 pr-3.5 py-2.5 text-sm rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700 outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                </div>
+
+                <button type="submit" id="btnLoginSubmit" class="w-full py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl font-bold text-sm shadow-md shadow-blue-500/20 transition-all flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-right-to-bracket"></i> Zaloguj się
+                </button>
+            </form>
+
+            <div class="p-3 rounded-xl bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-700 text-[11px] text-slate-500 space-y-1 text-center">
+                <p class="font-bold text-slate-700 dark:text-slate-300">Domyślne dane dostępowe:</p>
+                <p>👑 <b>Administrator:</b> login: <code class="bg-white dark:bg-slate-800 px-1 py-0.5 rounded">admin</code> | hasło: <code class="bg-white dark:bg-slate-800 px-1 py-0.5 rounded">admin</code></p>
+                <p>👤 <b>Pracownik:</b> login: <code class="bg-white dark:bg-slate-800 px-1 py-0.5 rounded">pracownik</code> | hasło: <code class="bg-white dark:bg-slate-800 px-1 py-0.5 rounded">pracownik123</code></p>
+            </div>
+        </div>
+    </div>
+
     <!-- Top Navigation Bar -->
     <header class="h-16 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between px-6 z-20 flex-shrink-0">
         <div class="flex items-center gap-3">
@@ -63,9 +97,9 @@
 
         <div class="flex items-center gap-4">
             <!-- Connection Status Pill -->
-            <div id="connectionPill" class="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium bg-slate-100 dark:bg-slate-700/50 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+            <div id="connectionPill" class="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium bg-slate-100 dark:bg-slate-700/50 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
                 <span class="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse" id="statusDot"></span>
-                <span id="statusText">Ładowanie połączenia...</span>
+                <span id="statusText">Połączenie...</span>
             </div>
 
             <!-- Balance Badge -->
@@ -80,9 +114,25 @@
                 </button>
             </div>
 
+            <!-- User Profile & Role Badge -->
+            <div id="userProfileBadge" class="flex items-center gap-2 pl-3 border-l border-slate-200 dark:border-slate-700 text-xs">
+                <div class="text-right">
+                    <div id="userFullName" class="font-bold text-slate-800 dark:text-white">Użytkownik</div>
+                    <div id="userRoleBadge" class="text-[10px] font-semibold text-blue-600 dark:text-blue-400 uppercase">Rola</div>
+                </div>
+                <button onclick="handleLogout()" class="p-2 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/30 transition-colors" title="Wyloguj się">
+                    <i class="fa-solid fa-right-from-bracket"></i>
+                </button>
+            </div>
+
             <!-- Theme Toggle -->
             <button onclick="toggleDarkMode()" class="p-2 rounded-xl text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors" title="Przełącz motyw ciemny/jasny">
                 <i id="themeIcon" class="fa-solid fa-moon"></i>
+            </button>
+
+            <!-- Shutdown Server Button (ADMIN ONLY) -->
+            <button id="btnAdminShutdown" onclick="confirmShutdownServer()" class="hidden p-2 rounded-xl text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/30 transition-colors" title="Wyłącz serwer główny (Tylko Administrator)">
+                <i class="fa-solid fa-power-off"></i>
             </button>
         </div>
     </header>
@@ -146,10 +196,11 @@
                 </button>
             </nav>
 
-            <div class="pt-4 border-t border-slate-200 dark:border-slate-700">
+            <!-- Admin Settings link in sidebar (HIDDEN FOR REGULAR USERS) -->
+            <div id="adminNavSection" class="pt-4 border-t border-slate-200 dark:border-slate-700">
                 <button onclick="switchTab('settings')" id="nav-settings" class="nav-btn w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-all">
                     <i class="fa-solid fa-gear w-5 text-center text-slate-400"></i>
-                    <span>Ustawienia API</span>
+                    <span>Ustawienia & Użytkownicy</span>
                 </button>
             </div>
         </aside>
@@ -265,6 +316,7 @@
                                 <thead class="text-xs text-slate-400 uppercase border-b border-slate-200 dark:border-slate-700">
                                     <tr>
                                         <th class="py-2.5 px-3">Data</th>
+                                        <th class="py-2.5 px-3">Użytkownik</th>
                                         <th class="py-2.5 px-3">Typ</th>
                                         <th class="py-2.5 px-3">Odbiorcy</th>
                                         <th class="py-2.5 px-3">Status</th>
@@ -273,7 +325,7 @@
                                 </thead>
                                 <tbody id="recentHistoryTable" class="divide-y divide-slate-100 dark:divide-slate-700/50">
                                     <tr>
-                                        <td colspan="5" class="py-6 text-center text-slate-400 text-xs">Ładowanie ostatnich operacji...</td>
+                                        <td colspan="6" class="py-6 text-center text-slate-400 text-xs">Ładowanie ostatnich operacji...</td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -296,7 +348,7 @@
                             <option value="">-- Wybierz szablon --</option>
                         </select>
                         <button onclick="switchTab('templates')" class="px-2.5 py-1.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 transition-colors flex items-center gap-1">
-                            <i class="fa-solid fa-gear text-[10px]"></i> Zarządzaj
+                            <i class="fa-solid fa-gear text-[10px]"></i> Szablony
                         </button>
                     </div>
                 </div>
@@ -387,26 +439,20 @@
                     <!-- Live Phone Preview Card -->
                     <div class="lg:col-span-1 flex flex-col items-center">
                         <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Podgląd na żywo w telefonie</p>
-                        <!-- Phone Frame -->
                         <div class="w-full max-w-[280px] bg-slate-900 rounded-[38px] p-3 shadow-2xl border-4 border-slate-800 ring-1 ring-slate-700">
-                            <!-- Phone speaker & notch -->
                             <div class="h-4 flex items-center justify-center mb-2">
                                 <div class="w-16 h-3 bg-slate-800 rounded-full"></div>
                             </div>
-                            <!-- Phone screen -->
                             <div class="bg-slate-100 dark:bg-slate-800 rounded-[28px] h-[360px] flex flex-col justify-between p-3 overflow-hidden">
-                                <!-- Chat header -->
                                 <div class="border-b border-slate-200 dark:border-slate-700 pb-2 text-center">
                                     <div id="previewSender" class="font-bold text-xs text-slate-800 dark:text-white">SMSAPI</div>
                                     <div class="text-[10px] text-slate-400">Dzisiaj, 12:00</div>
                                 </div>
-                                <!-- Chat bubble -->
                                 <div class="flex-1 py-3 overflow-y-auto custom-scrollbar">
                                     <div class="bg-blue-600 text-white text-xs p-3 rounded-2xl rounded-tl-sm max-w-[90%] shadow-sm break-words" id="previewBubble">
                                         Wpisz treść wiadomości, aby zobaczyć podgląd na żywo...
                                     </div>
                                 </div>
-                                <!-- Bottom simulated bar -->
                                 <div class="pt-2 border-t border-slate-200 dark:border-slate-700 text-[10px] text-center text-slate-400">
                                     Wiadomość SMS/MMS
                                 </div>
@@ -428,7 +474,6 @@
                     </button>
                 </div>
 
-                <!-- Template filter bar -->
                 <div class="flex flex-wrap items-center gap-3">
                     <input type="text" id="templateSearchInput" placeholder="Szukaj szablonu po nazwie lub treści..." oninput="filterTemplatesGrid()" class="flex-1 min-w-[200px] px-3.5 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700 outline-none">
                     <select id="templateCategoryFilter" onchange="filterTemplatesGrid()" class="px-3.5 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700 outline-none">
@@ -442,10 +487,7 @@
                     </select>
                 </div>
 
-                <!-- Templates Cards Grid -->
-                <div id="templatesGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    <!-- Loaded dynamically -->
-                </div>
+                <div id="templatesGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
             </section>
 
             <!-- TAB 3: BULK SEND FROM CSV -->
@@ -455,7 +497,6 @@
                     <p class="text-xs text-slate-500 mt-0.5">Wgraj plik z odbiorcami i wyślij spersonalizowane wiadomości z dynamicznymi zmiennymi.</p>
                 </div>
 
-                <!-- Dropzone Card -->
                 <div class="bg-white dark:bg-slate-800 p-6 rounded-2xl border-2 border-dashed border-slate-300 dark:border-slate-700 text-center hover:border-blue-500 transition-colors">
                     <input type="file" id="csvFileInput" accept=".csv, .txt, .xlsx" class="hidden" onchange="handleCsvFileUpload(event)">
                     <div onclick="document.getElementById('csvFileInput').click()" class="cursor-pointer space-y-2 py-4">
@@ -463,11 +504,10 @@
                             <i class="fa-solid fa-cloud-arrow-up"></i>
                         </div>
                         <h3 class="font-semibold text-base">Przeciągnij plik CSV tutaj lub kliknij, aby wybrać</h3>
-                        <p class="text-xs text-slate-400">Obsługiwane formaty: .CSV (rozdzielany przecinkami lub średnikami) z nagłówkami kolumn</p>
+                        <p class="text-xs text-slate-400">Obsługiwane formaty: .CSV z nagłówkami kolumn</p>
                     </div>
                 </div>
 
-                <!-- Mapping and Preview Area -->
                 <div id="csvWorkspace" class="hidden space-y-6">
                     <div class="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-4">
                         <h3 class="font-bold text-base flex items-center gap-2">
@@ -481,9 +521,7 @@
                             </div>
                             <div>
                                 <label class="block text-xs font-semibold uppercase text-slate-500 mb-1">Dostępne zmienne z nagłówków</label>
-                                <div id="csvPlaceholderPills" class="flex flex-wrap gap-1.5 p-2 rounded-xl bg-slate-50 dark:bg-slate-700/40 border border-slate-200 dark:border-slate-700 text-xs">
-                                    <!-- Pills added dynamically -->
-                                </div>
+                                <div id="csvPlaceholderPills" class="flex flex-wrap gap-1.5 p-2 rounded-xl bg-slate-50 dark:bg-slate-700/40 border border-slate-200 dark:border-slate-700 text-xs"></div>
                             </div>
                         </div>
 
@@ -492,7 +530,6 @@
                             <textarea id="csvMessageTemplate" rows="3" oninput="updateCsvMergedPreview()" placeholder="Wpisz treść ze zmiennymi np: Witaj [%imie%]! Twoje zamówienie [%zamowienie%] zostało wysłane." class="w-full px-3.5 py-2.5 text-sm rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700/50 outline-none"></textarea>
                         </div>
 
-                        <!-- Options row -->
                         <div class="flex flex-wrap items-center justify-between gap-4 pt-2">
                             <div class="flex items-center gap-4">
                                 <label class="flex items-center gap-2 text-xs font-medium cursor-pointer">
@@ -511,7 +548,6 @@
                         </div>
                     </div>
 
-                    <!-- Progress Bar (shown when sending) -->
                     <div id="csvProgressCard" class="hidden bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-3">
                         <div class="flex items-center justify-between text-sm font-semibold">
                             <span>Postęp wysyłki masowej...</span>
@@ -526,10 +562,9 @@
                         </div>
                     </div>
 
-                    <!-- Data Preview Table -->
                     <div class="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
                         <h3 class="font-bold text-base mb-3 flex items-center gap-2">
-                            <i class="fa-solid fa-table text-blue-500"></i> Podgląd danych i wygenerowanych wiadomości (pierwsze 10 wierszy)
+                            <i class="fa-solid fa-table text-blue-500"></i> Podgląd danych i wygenerowanych wiadomości (pierwsze 8 wierszy)
                         </h3>
                         <div class="overflow-x-auto">
                             <table class="w-full text-left text-xs">
@@ -549,7 +584,6 @@
                 </div>
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <!-- Send MFA Code -->
                     <div class="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-4">
                         <div class="flex items-center gap-3">
                             <div class="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-900/40 text-indigo-600 flex items-center justify-center text-lg">
@@ -580,7 +614,6 @@
                         </form>
                     </div>
 
-                    <!-- Verify MFA Code -->
                     <div class="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-4">
                         <div class="flex items-center gap-3">
                             <div class="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-900/40 text-emerald-600 flex items-center justify-center text-lg">
@@ -619,7 +652,6 @@
                 </div>
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <!-- VMS Box -->
                     <div class="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-4">
                         <div class="flex items-center gap-3">
                             <div class="w-10 h-10 rounded-xl bg-purple-50 dark:bg-purple-900/40 text-purple-600 flex items-center justify-center text-lg">
@@ -649,31 +681,12 @@
                                 <label class="block text-xs font-semibold uppercase text-slate-500 mb-1">Treść do przeczytania przez lektora</label>
                                 <textarea id="vmsText" rows="3" placeholder="Wpisz treść, którą lektor przeczyta odbiorcy po odebraniu połączenia..." required class="w-full px-3.5 py-2 text-sm rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700 outline-none"></textarea>
                             </div>
-                            <div class="grid grid-cols-2 gap-3">
-                                <div>
-                                    <label class="block text-xs text-slate-500 mb-1">Liczba prób połączenia</label>
-                                    <select id="vmsTries" class="w-full px-3 py-1.5 text-xs rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700 outline-none">
-                                        <option value="1">1 próba</option>
-                                        <option value="2">2 próby</option>
-                                        <option value="3">3 próby</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label class="block text-xs text-slate-500 mb-1">Odstęp między próbami</label>
-                                    <select id="vmsInterval" class="w-full px-3 py-1.5 text-xs rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700 outline-none">
-                                        <option value="300">5 minut</option>
-                                        <option value="600">10 minut</option>
-                                        <option value="1800">30 minut</option>
-                                    </select>
-                                </div>
-                            </div>
                             <button type="submit" id="btnSendVms" class="w-full py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-semibold text-sm transition-colors flex items-center justify-center gap-2">
                                 <i class="fa-solid fa-phone-volume"></i> Zleć połączenie głosowe VMS
                             </button>
                         </form>
                     </div>
 
-                    <!-- MMS Box -->
                     <div class="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-4">
                         <div class="flex items-center gap-3">
                             <div class="w-10 h-10 rounded-xl bg-pink-50 dark:bg-pink-900/40 text-pink-600 flex items-center justify-center text-lg">
@@ -723,7 +736,6 @@
                     </div>
                 </div>
 
-                <!-- Contacts Table Card -->
                 <div class="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-4">
                     <div class="flex items-center justify-between">
                         <input type="text" id="contactSearchInput" placeholder="Szukaj kontaktu po nazwisku lub numerze..." oninput="filterContactsTable()" class="w-72 px-3.5 py-1.5 text-xs rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700 outline-none">
@@ -759,7 +771,6 @@
                 </div>
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <!-- Short URL Creator -->
                     <div class="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-4">
                         <div class="flex items-center gap-3">
                             <div class="w-10 h-10 rounded-xl bg-cyan-50 dark:bg-cyan-900/40 text-cyan-600 flex items-center justify-center text-lg">
@@ -784,11 +795,9 @@
                                 <i class="fa-solid fa-scissors"></i> Skróć link do idz.do
                             </button>
                         </form>
-
-                        <div id="shortUrlResult" class="hidden p-3 rounded-xl bg-cyan-50 dark:bg-cyan-900/30 border border-cyan-200 dark:border-cyan-800 text-xs text-cyan-900 dark:text-cyan-200"></div>
+                        <div id="shortUrlResult" class="hidden p-3 rounded-xl bg-cyan-50 dark:bg-cyan-900/30 border border-cyan-200 dark:border-cyan-800 text-xs"></div>
                     </div>
 
-                    <!-- HLR Lookup -->
                     <div class="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-4">
                         <div class="flex items-center gap-3">
                             <div class="w-10 h-10 rounded-xl bg-amber-50 dark:bg-amber-900/40 text-amber-600 flex items-center justify-center text-lg">
@@ -809,7 +818,6 @@
                                 <i class="fa-solid fa-magnifying-glass"></i> Sprawdź numer (HLR)
                             </button>
                         </form>
-
                         <div id="hlrResultBox" class="hidden p-4 rounded-xl bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-700 text-xs space-y-1"></div>
                     </div>
                 </div>
@@ -828,7 +836,6 @@
                 </div>
 
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <!-- Add number to blacklist form -->
                     <div class="md:col-span-1 bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-4">
                         <h3 class="font-bold text-base flex items-center gap-2">
                             <i class="fa-solid fa-plus-circle text-rose-500"></i> Dodaj do czarnej listy
@@ -844,7 +851,6 @@
                         </form>
                     </div>
 
-                    <!-- Blacklist table -->
                     <div class="md:col-span-2 bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
                         <h3 class="font-bold text-base mb-3">Zablokowane numery</h3>
                         <div class="overflow-x-auto">
@@ -858,7 +864,7 @@
                                 </thead>
                                 <tbody id="blacklistTableBody" class="divide-y divide-slate-100 dark:divide-slate-700/50">
                                     <tr>
-                                        <td colspan="3" class="py-6 text-center text-slate-400">Brak zablokowanych numerów lub załaduj listę...</td>
+                                        <td colspan="3" class="py-6 text-center text-slate-400">Brak zablokowanych numerów.</td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -872,22 +878,21 @@
                 <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                     <div>
                         <h2 class="text-xl font-bold text-slate-800 dark:text-white">Historia i Raporty Wysyłek</h2>
-                        <p class="text-xs text-slate-500 mt-0.5">Kompletny dziennik wszystkich zleceń wysyłki wraz z kosztami i statusami.</p>
+                        <p class="text-xs text-slate-500 mt-0.5">Dziennik zleceń wysyłki wraz z informacją, który pracownik zlecił wysyłkę.</p>
                     </div>
                     <div class="flex flex-wrap items-center gap-2">
                         <a href="/api/history/export" class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow transition-colors">
                             <i class="fa-solid fa-file-export"></i> Eksportuj do CSV
                         </a>
-                        <button onclick="confirmClearHistory()" class="px-3.5 py-2 border border-rose-300 dark:border-rose-800 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/30 rounded-xl text-xs font-semibold transition-colors flex items-center gap-1.5">
+                        <button id="btnAdminClearHistory" onclick="confirmClearHistory()" class="hidden px-3.5 py-2 border border-rose-300 dark:border-rose-800 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/30 rounded-xl text-xs font-semibold transition-colors flex items-center gap-1.5">
                             <i class="fa-solid fa-trash"></i> Wyczyść historię
                         </button>
                     </div>
                 </div>
 
                 <div class="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-4">
-                    <!-- Filters row -->
                     <div class="flex flex-wrap items-center gap-3">
-                        <input type="text" id="historySearch" placeholder="Szukaj odbiorcy, treści lub nadawcy..." oninput="fetchHistory()" class="flex-1 min-w-[200px] px-3.5 py-1.5 text-xs rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700 outline-none">
+                        <input type="text" id="historySearch" placeholder="Szukaj po odbiorcy, treści lub użytkowniku..." oninput="fetchHistory()" class="flex-1 min-w-[200px] px-3.5 py-1.5 text-xs rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700 outline-none">
                         <select id="historyTypeFilter" onchange="fetchHistory()" class="px-3.5 py-1.5 text-xs rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700 outline-none">
                             <option value="">Wszystkie typy</option>
                             <option value="SMS">SMS standardowy</option>
@@ -902,12 +907,12 @@
                         </button>
                     </div>
 
-                    <!-- History Table -->
                     <div class="overflow-x-auto">
                         <table class="w-full text-left text-xs">
                             <thead class="bg-slate-50 dark:bg-slate-700/50 uppercase font-semibold text-slate-500">
                                 <tr>
                                     <th class="py-2.5 px-3">Data i czas</th>
+                                    <th class="py-2.5 px-3">Użytkownik</th>
                                     <th class="py-2.5 px-3">Typ</th>
                                     <th class="py-2.5 px-3">Nadawca</th>
                                     <th class="py-2.5 px-3">Odbiorcy</th>
@@ -918,7 +923,7 @@
                             </thead>
                             <tbody id="historyTableBody" class="divide-y divide-slate-100 dark:divide-slate-700/50">
                                 <tr>
-                                    <td colspan="7" class="py-8 text-center text-slate-400">Ładowanie historii...</td>
+                                    <td colspan="8" class="py-8 text-center text-slate-400">Ładowanie historii...</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -926,18 +931,18 @@
                 </div>
             </section>
 
-            <!-- TAB 10: SETTINGS & API CONFIG -->
+            <!-- TAB 10: SETTINGS & USER MANAGEMENT (ADMIN ONLY) -->
             <section id="tab-settings" class="tab-content hidden space-y-6">
                 <div>
-                    <h2 class="text-xl font-bold text-slate-800 dark:text-white">Ustawienia & Token SMSAPI</h2>
-                    <p class="text-xs text-slate-500 mt-0.5">Skonfiguruj połączenie z Twoim kontem na platformie SMSAPI.</p>
+                    <h2 class="text-xl font-bold text-slate-800 dark:text-white">Ustawienia API & Zarządzanie Użytkownikami</h2>
+                    <p class="text-xs text-slate-500 mt-0.5">Konfiguracja tokenów SMSAPI oraz zarządzanie kontami pracowników w firmie.</p>
                 </div>
 
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <!-- Credentials Card -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <!-- API Credentials Card -->
                     <div class="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-4">
                         <h3 class="font-bold text-base flex items-center gap-2">
-                            <i class="fa-solid fa-key text-blue-500"></i> Dane dostępowe API
+                            <i class="fa-solid fa-key text-blue-500"></i> Dane dostępowe SMSAPI
                         </h3>
 
                         <form onsubmit="handleSaveConfig(event)" class="space-y-4">
@@ -954,7 +959,7 @@
                             <div>
                                 <div class="flex items-center justify-between mb-1">
                                     <label class="block text-xs font-semibold uppercase text-slate-500">OAuth Access Token</label>
-                                    <a href="https://ssl.smsapi.pl/react/api-tokens" target="_blank" class="text-xs text-blue-600 hover:underline">Wygeneruj token w panelu SMSAPI &rarr;</a>
+                                    <a href="https://ssl.smsapi.pl/react/api-tokens" target="_blank" class="text-xs text-blue-600 hover:underline">Wygeneruj token &rarr;</a>
                                 </div>
                                 <div class="relative">
                                     <input type="password" id="cfgAccessToken" placeholder="Wklej swój token SMSAPI..." class="w-full px-3.5 py-2 text-sm rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700 outline-none pr-10">
@@ -962,7 +967,6 @@
                                         <i id="tokenEyeIcon" class="fa-solid fa-eye"></i>
                                     </button>
                                 </div>
-                                <p class="text-[11px] text-slate-400 mt-1">Twój token jest bezpiecznie przechowywany wyłącznie lokalnie w bazie aplikacji.</p>
                             </div>
 
                             <div>
@@ -990,7 +994,6 @@
                             <button onclick="fetchSenders()" class="text-xs text-blue-600 hover:underline">Odśwież</button>
                         </div>
 
-                        <!-- Add Sender Name Form -->
                         <form onsubmit="handleAddSender(event)" class="flex gap-2">
                             <input type="text" id="newSenderName" placeholder="Nowa nazwa (max 11 znaków)" maxlength="11" required class="flex-1 px-3.5 py-1.5 text-xs rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700 outline-none">
                             <button type="submit" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold">
@@ -998,17 +1001,84 @@
                             </button>
                         </form>
 
-                        <!-- Senders list -->
-                        <div class="overflow-y-auto max-h-60 custom-scrollbar">
+                        <div class="overflow-y-auto max-h-48 custom-scrollbar">
                             <div id="sendersList" class="space-y-2 text-xs">
                                 <p class="text-slate-400 py-3 text-center">Wczytywanie nazw nadawcy...</p>
                             </div>
                         </div>
                     </div>
                 </div>
+
+                <!-- User Management Section (ADMIN ONLY) -->
+                <div class="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-4">
+                    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                        <div>
+                            <h3 class="font-bold text-base flex items-center gap-2">
+                                <i class="fa-solid fa-users-gear text-indigo-500"></i> Użytkownicy aplikacji i role dostępowe
+                            </h3>
+                            <p class="text-xs text-slate-400">Dodawaj pracowników lub dodatkowych administratorów.</p>
+                        </div>
+                        <button onclick="openCreateUserModal()" class="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow">
+                            <i class="fa-solid fa-user-plus"></i> Dodaj nowego użytkownika
+                        </button>
+                    </div>
+
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-xs">
+                            <thead class="bg-slate-50 dark:bg-slate-700/50 uppercase font-semibold text-slate-500">
+                                <tr>
+                                    <th class="py-2.5 px-3">Login</th>
+                                    <th class="py-2.5 px-3">Imię i Nazwisko / Dział</th>
+                                    <th class="py-2.5 px-3">Rola w systemie</th>
+                                    <th class="py-2.5 px-3">Data utworzenia</th>
+                                    <th class="py-2.5 px-3 text-right">Akcje</th>
+                                </tr>
+                            </thead>
+                            <tbody id="usersTableBody" class="divide-y divide-slate-100 dark:divide-slate-700/50">
+                                <tr><td colspan="5" class="py-6 text-center text-slate-400">Ładowanie użytkowników...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </section>
 
         </main>
+    </div>
+
+    <!-- Add/Edit User Modal (Admin only) -->
+    <div id="userModal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-700 space-y-4">
+            <div class="flex items-center justify-between">
+                <h3 id="userModalTitle" class="font-bold text-base">Dodaj użytkownika</h3>
+                <button onclick="closeUserModal()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <form onsubmit="handleSaveUserForm(event)" class="space-y-3 text-xs">
+                <input type="hidden" id="modalUserId" value="">
+                <div>
+                    <label class="block font-semibold mb-1">Login *</label>
+                    <input type="text" id="modalUserUsername" required placeholder="np. jankowalski" class="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700 outline-none">
+                </div>
+                <div>
+                    <label class="block font-semibold mb-1">Imię i Nazwisko / Opis *</label>
+                    <input type="text" id="modalUserFullName" required placeholder="np. Jan Kowalski (Recepcja)" class="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700 outline-none">
+                </div>
+                <div>
+                    <label class="block font-semibold mb-1">Rola</label>
+                    <select id="modalUserRole" class="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700 outline-none">
+                        <option value="user">Pracownik (Wysyłka SMS, brak dostępu do tokenów API)</option>
+                        <option value="admin">Administrator (Pełny dostęp do ustawień i wyłączania)</option>
+                    </select>
+                </div>
+                <div>
+                    <label id="modalUserPasswordLabel" class="block font-semibold mb-1">Hasło *</label>
+                    <input type="password" id="modalUserPassword" placeholder="Wpisz hasło..." class="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700 outline-none">
+                </div>
+                <div class="flex gap-2 pt-2">
+                    <button type="button" onclick="closeUserModal()" class="flex-1 py-2.5 border rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700 font-medium">Anuluj</button>
+                    <button type="submit" class="flex-1 py-2.5 bg-indigo-600 text-white rounded-xl font-semibold hover:bg-indigo-700 shadow">Zapisz użytkownika</button>
+                </div>
+            </form>
+        </div>
     </div>
 
     <!-- Add Contact Modal Dialog -->
@@ -1077,7 +1147,6 @@
                     </div>
                     <textarea id="modalTemplateContent" rows="4" required placeholder="Wpisz treść szablonu..." class="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700 outline-none custom-scrollbar"></textarea>
                 </div>
-                <!-- Helper tag pills -->
                 <div>
                     <span class="text-[11px] text-slate-400 font-medium">Szybkie znaczniki:</span>
                     <div class="flex flex-wrap gap-1 mt-1">
@@ -1094,26 +1163,30 @@
         </div>
     </div>
 
-    <!-- MAIN JAVASCRIPT APPLICATION LOGIC -->
+    <!-- JAVASCRIPT APPLICATION LOGIC -->
     <script>
-        // State variables
+        let currentUser = null;
         let appConfig = { is_configured: false, masked_token: '', domain: '', default_sender: '' };
         let parsedCsvData = [];
         let allContacts = [];
         let savedTemplates = [];
         let sendersList = [];
+        let systemUsers = [];
 
-        // Polish diacritics mapping for normalization
         const plMap = {
             'ą':'a', 'ć':'c', 'ę':'e', 'ł':'l', 'ń':'n', 'ó':'o', 'ś':'s', 'ź':'z', 'ż':'z',
             'Ą':'A', 'Ć':'C', 'Ę':'E', 'Ł':'L', 'Ń':'N', 'Ó':'O', 'Ś':'S', 'Ź':'Z', 'Ż':'Z'
         };
-
-        // GSM-7 Character Set
         const gsm7Chars = "@£$¥èéùìòÇ\nØø\rÅåΔ_ΦΓΛΩΠΨΣΘΞ\x1bÆæßÉ !\"#¤%&'()*+,-./0123456789:;<=>?¡ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÑÜ`abcdefghijklmnopqrstuvwxyzäöñüà^{}\\[~]|€";
 
         // Tab Switching
         function switchTab(tabId) {
+            // Guard: non-admins cannot open settings
+            if (tabId === 'settings' && currentUser?.role !== 'admin') {
+                Swal.fire({ icon: 'error', title: 'Brak uprawnień', text: 'Tylko Administrator ma dostęp do ustawień.' });
+                return;
+            }
+
             document.querySelectorAll('.tab-content').forEach(tab => tab.classList.add('hidden'));
             document.querySelectorAll('.nav-btn').forEach(btn => {
                 btn.classList.remove('bg-blue-50', 'text-blue-600', 'dark:bg-blue-900/30', 'dark:text-blue-400');
@@ -1128,12 +1201,11 @@
                 activeNav.classList.add('bg-blue-50', 'text-blue-600', 'dark:bg-blue-900/30', 'dark:text-blue-400');
             }
 
-            // Lazy fetch data based on tab
             if (tabId === 'templates') renderTemplatesGrid(savedTemplates);
             if (tabId === 'history') fetchHistory();
             if (tabId === 'contacts') fetchContacts();
             if (tabId === 'blacklist') fetchBlacklist();
-            if (tabId === 'settings') { fetchConfig(); fetchSenders(); }
+            if (tabId === 'settings') { fetchConfig(); fetchSenders(); fetchUsers(); }
         }
 
         // Theme Toggle
@@ -1156,17 +1228,254 @@
             document.getElementById('themeIcon')?.classList.replace('fa-moon', 'fa-sun');
         }
 
-        // App Initialization
+        // App Initialization & Session check
         window.addEventListener('DOMContentLoaded', async () => {
+            await checkAuth();
+        });
+
+        async function checkAuth() {
+            try {
+                const res = await fetch('/api/auth/me');
+                const data = await res.json();
+                if (data.is_authenticated && data.user) {
+                    currentUser = data.user;
+                    applyUserPermissions();
+                    document.getElementById('loginScreen').classList.add('hidden');
+                    await loadAppData();
+                } else {
+                    document.getElementById('loginScreen').classList.remove('hidden');
+                }
+            } catch (err) {
+                console.error(err);
+                document.getElementById('loginScreen').classList.remove('hidden');
+            }
+        }
+
+        function applyUserPermissions() {
+            const fullNameEl = document.getElementById('userFullName');
+            const roleBadgeEl = document.getElementById('userRoleBadge');
+            const adminNav = document.getElementById('adminNavSection');
+            const adminShutdownBtn = document.getElementById('btnAdminShutdown');
+            const adminClearHistoryBtn = document.getElementById('btnAdminClearHistory');
+
+            if (!currentUser) return;
+
+            fullNameEl.textContent = currentUser.full_name;
+            if (currentUser.role === 'admin') {
+                roleBadgeEl.textContent = 'Administrator 👑';
+                roleBadgeEl.className = 'text-[10px] font-bold text-indigo-600 dark:text-indigo-400 uppercase';
+                if (adminNav) adminNav.classList.remove('hidden');
+                if (adminShutdownBtn) adminShutdownBtn.classList.remove('hidden');
+                if (adminClearHistoryBtn) adminClearHistoryBtn.classList.remove('hidden');
+            } else {
+                roleBadgeEl.textContent = 'Pracownik 👤';
+                roleBadgeEl.className = 'text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase';
+                if (adminNav) adminNav.classList.add('hidden');
+                if (adminShutdownBtn) adminShutdownBtn.classList.add('hidden');
+                if (adminClearHistoryBtn) adminClearHistoryBtn.classList.add('hidden');
+            }
+        }
+
+        async function handleLoginSubmit(e) {
+            e.preventDefault();
+            const username = document.getElementById('loginUsername').value.trim();
+            const password = document.getElementById('loginPassword').value;
+            const btn = document.getElementById('btnLoginSubmit');
+
+            btn.disabled = true;
+            btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Logowanie...`;
+
+            try {
+                const res = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ username, password })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    currentUser = data.user;
+                    document.getElementById('loginScreen').classList.add('hidden');
+                    applyUserPermissions();
+                    await loadAppData();
+                    Swal.fire({ icon: 'success', title: 'Zalogowano!', text: `Witaj, ${currentUser.full_name}!`, timer: 1500, showConfirmButton: false });
+                } else {
+                    Swal.fire({ icon: 'error', title: 'Błąd logowania', text: data.error });
+                }
+            } catch (err) {
+                Swal.fire({ icon: 'error', title: 'Błąd sieci', text: err.message });
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = `<i class="fa-solid fa-right-to-bracket"></i> Zaloguj się`;
+            }
+        }
+
+        async function handleLogout() {
+            const confirm = await Swal.fire({
+                title: 'Wylogować się z panelu?',
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonText: 'Tak, wyloguj',
+                cancelButtonText: 'Anuluj'
+            });
+            if (!confirm.isConfirmed) return;
+
+            await fetch('/api/auth/logout', { method: 'POST' });
+            currentUser = null;
+            document.getElementById('loginScreen').classList.remove('hidden');
+        }
+
+        async function loadAppData() {
             await fetchConfig();
             await fetchBalance();
             await fetchStats();
             await fetchRecentHistory();
             await fetchSenders();
             await fetchTemplates();
-        });
+        }
 
-        // Config & Connection Status
+        // Users Management (Admin Only)
+        async function fetchUsers() {
+            if (currentUser?.role !== 'admin') return;
+            try {
+                const res = await fetch('/api/users');
+                const data = await res.json();
+                systemUsers = data.users || [];
+                const tbody = document.getElementById('usersTableBody');
+                if (systemUsers.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="5" class="py-6 text-center text-slate-400">Brak użytkowników.</td></tr>`;
+                    return;
+                }
+                tbody.innerHTML = systemUsers.map(u => `
+                    <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/30">
+                        <td class="py-2.5 px-3 font-mono font-bold text-blue-600">${u.username}</td>
+                        <td class="py-2.5 px-3 font-medium">${u.full_name}</td>
+                        <td class="py-2.5 px-3">
+                            <span class="px-2 py-0.5 rounded text-[10px] font-bold ${u.role === 'admin' ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300' : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'}">
+                                ${u.role === 'admin' ? 'Administrator' : 'Pracownik'}
+                            </span>
+                        </td>
+                        <td class="py-2.5 px-3 text-slate-400">${u.created_at?.slice(0, 10) || ''}</td>
+                        <td class="py-2.5 px-3 text-right">
+                            <button onclick="openEditUserModal(${u.id})" class="p-1 text-slate-400 hover:text-blue-600"><i class="fa-solid fa-pen-to-square"></i></button>
+                            ${u.id !== currentUser.id ? `<button onclick="deleteUser(${u.id}, '${u.username}')" class="p-1 text-slate-400 hover:text-rose-600"><i class="fa-solid fa-trash"></i></button>` : ''}
+                        </td>
+                    </tr>
+                `).join('');
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        function openCreateUserModal() {
+            document.getElementById('modalUserId').value = '';
+            document.getElementById('modalUserUsername').value = '';
+            document.getElementById('modalUserUsername').disabled = false;
+            document.getElementById('modalUserFullName').value = '';
+            document.getElementById('modalUserRole').value = 'user';
+            document.getElementById('modalUserPassword').value = '';
+            document.getElementById('modalUserPassword').required = true;
+            document.getElementById('modalUserPasswordLabel').textContent = 'Hasło *';
+            document.getElementById('userModalTitle').textContent = 'Dodaj nowego użytkownika';
+            document.getElementById('userModal').classList.remove('hidden');
+        }
+
+        function openEditUserModal(id) {
+            const u = systemUsers.find(item => item.id === id);
+            if (!u) return;
+            document.getElementById('modalUserId').value = u.id;
+            document.getElementById('modalUserUsername').value = u.username;
+            document.getElementById('modalUserUsername').disabled = true;
+            document.getElementById('modalUserFullName').value = u.full_name;
+            document.getElementById('modalUserRole').value = u.role;
+            document.getElementById('modalUserPassword').value = '';
+            document.getElementById('modalUserPassword').required = false;
+            document.getElementById('modalUserPasswordLabel').textContent = 'Nowe hasło (pozostaw puste, aby nie zmieniać)';
+            document.getElementById('userModalTitle').textContent = `Edytuj: ${u.username}`;
+            document.getElementById('userModal').classList.remove('hidden');
+        }
+
+        function closeUserModal() {
+            document.getElementById('userModal').classList.add('hidden');
+        }
+
+        async function handleSaveUserForm(e) {
+            e.preventDefault();
+            const id = document.getElementById('modalUserId').value;
+            const username = document.getElementById('modalUserUsername').value.trim();
+            const full_name = document.getElementById('modalUserFullName').value.trim();
+            const role = document.getElementById('modalUserRole').value;
+            const password = document.getElementById('modalUserPassword').value;
+
+            const url = id ? `/api/users/${id}` : '/api/users';
+            const method = id ? 'PUT' : 'POST';
+
+            try {
+                const res = await fetch(url, {
+                    method,
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ username, full_name, role, password })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    Swal.fire({ icon: 'success', title: 'Zapisano!', text: data.message });
+                    closeUserModal();
+                    fetchUsers();
+                } else {
+                    Swal.fire({ icon: 'error', title: 'Błąd', text: data.error });
+                }
+            } catch (err) {
+                Swal.fire({ icon: 'error', title: 'Błąd sieci', text: err.message });
+            }
+        }
+
+        async function deleteUser(id, username) {
+            const confirm = await Swal.fire({
+                title: `Usunąć konto "${username}"?`,
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'Tak, usuń',
+                cancelButtonText: 'Anuluj'
+            });
+            if (!confirm.isConfirmed) return;
+
+            try {
+                const res = await fetch(`/api/users/${id}`, { method: 'DELETE' });
+                const data = await res.json();
+                if (data.success) {
+                    Swal.fire({ icon: 'success', title: 'Usunięto', text: data.message });
+                    fetchUsers();
+                } else {
+                    Swal.fire({ icon: 'error', title: 'Błąd', text: data.error });
+                }
+            } catch (err) {
+                Swal.fire({ icon: 'error', title: 'Błąd', text: err.message });
+            }
+        }
+
+        // Server Shutdown (Admin only)
+        async function confirmShutdownServer() {
+            if (currentUser?.role !== 'admin') return;
+            const confirm = await Swal.fire({
+                title: 'Wyłączyć główny serwer aplikacji?',
+                text: 'Aplikacja przestanie działać dla wszystkich komputerów w biurze.',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'Tak, wyłącz serwer',
+                cancelButtonText: 'Anuluj',
+                confirmButtonColor: '#ef4444'
+            });
+            if (!confirm.isConfirmed) return;
+
+            try {
+                await fetch('/api/shutdown', { method: 'POST' });
+                Swal.fire({ icon: 'info', title: 'Serwer został wyłączony', text: 'Możesz zamknąć tę kartę.', showConfirmButton: false });
+                setTimeout(() => { window.close(); }, 2000);
+            } catch (e) {
+                console.log(e);
+            }
+        }
+
+        // Config & Status
         async function fetchConfig() {
             try {
                 const res = await fetch('/api/config');
@@ -1208,7 +1517,7 @@
                     document.getElementById('pointsBalance').textContent = '-- pkt';
                 }
             } catch (e) {
-                console.warn("Balance check:", e);
+                console.warn(e);
             }
         }
 
@@ -1230,16 +1539,17 @@
                 const data = await res.json();
                 const tbody = document.getElementById('recentHistoryTable');
                 if (!data.history || data.history.length === 0) {
-                    tbody.innerHTML = `<tr><td colspan="5" class="py-6 text-center text-slate-400 text-xs">Brak historii wysyłek. Wyślij pierwszą wiadomość!</td></tr>`;
+                    tbody.innerHTML = `<tr><td colspan="6" class="py-6 text-center text-slate-400 text-xs">Brak historii wysyłek. Wyślij pierwszą wiadomość!</td></tr>`;
                     return;
                 }
                 tbody.innerHTML = data.history.map(item => `
                     <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/30">
                         <td class="py-2.5 px-3 text-slate-500">${item.created_at?.slice(0, 16) || ''}</td>
+                        <td class="py-2.5 px-3 font-semibold text-blue-600">${item.created_by || 'admin'}</td>
                         <td class="py-2.5 px-3"><span class="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">${item.type}</span></td>
                         <td class="py-2.5 px-3 font-medium">${item.recipients}</td>
                         <td class="py-2.5 px-3">
-                            <span class="px-2 py-0.5 rounded text-[10px] font-bold ${item.status === 'SUCCESS' || item.status === 'VERIFIED' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' : (item.status === 'PARTIAL' ? 'bg-amber-100 text-amber-700' : 'bg-rose-100 text-rose-700')}">
+                            <span class="px-2 py-0.5 rounded text-[10px] font-bold ${item.status === 'SUCCESS' || item.status === 'VERIFIED' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' : 'bg-rose-100 text-rose-700'}">
                                 ${item.status}
                             </span>
                         </td>
@@ -1354,23 +1664,18 @@
             }
         }
 
-        // ==========================================
-        // Templates Management (Add / Edit / Delete)
-        // ==========================================
+        // Templates Management
         async function fetchTemplates() {
             try {
                 const res = await fetch('/api/templates');
                 const data = await res.json();
                 savedTemplates = data.templates || [];
 
-                // Update select dropdown in SMS Send tab
                 const select = document.getElementById('smsTemplateSelect');
                 if (select) {
                     select.innerHTML = `<option value="">-- Wybierz szablon --</option>` +
                         savedTemplates.map(t => `<option value="${t.id}">${t.name} (${t.category})</option>`).join('');
                 }
-
-                // Render grid if on templates tab
                 renderTemplatesGrid(savedTemplates);
             } catch (e) {
                 console.error(e);
@@ -1382,7 +1687,7 @@
             if (!grid) return;
 
             if (list.length === 0) {
-                grid.innerHTML = `<div class="col-span-full py-12 text-center text-slate-400">Brak szablonów spełniających kryteria. Kliknij "+ Dodaj nowy szablon", aby stworzyć pierwszy!</div>`;
+                grid.innerHTML = `<div class="col-span-full py-12 text-center text-slate-400">Brak szablonów. Kliknij "+ Dodaj nowy szablon", aby stworzyć pierwszy!</div>`;
                 return;
             }
 
@@ -1447,8 +1752,7 @@
         }
 
         function insertTagToTemplateModal(tag) {
-            const txt = document.getElementById('modalTemplateContent');
-            txt.value += tag;
+            document.getElementById('modalTemplateContent').value += tag;
         }
 
         async function handleSaveTemplateForm(e) {
@@ -1463,7 +1767,7 @@
 
             try {
                 const res = await fetch(url, {
-                    method: method,
+                    method,
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({ name, category, content })
                 });
@@ -1481,15 +1785,8 @@
         }
 
         async function deleteTemplate(id) {
-            const confirm = await Swal.fire({
-                title: 'Usunąć ten szablon?',
-                icon: 'warning',
-                showCancelButton: true,
-                confirmButtonText: 'Tak, usuń',
-                cancelButtonText: 'Anuluj'
-            });
+            const confirm = await Swal.fire({ title: 'Usunąć ten szablon?', icon: 'warning', showCancelButton: true });
             if (!confirm.isConfirmed) return;
-
             try {
                 const res = await fetch(`/api/templates/${id}`, { method: 'DELETE' });
                 const data = await res.json();
@@ -1520,18 +1817,16 @@
             }
         }
 
-        // SMS Metrics and Realtime Calculator
+        // SMS Metrics
         function calculateSmsMetrics() {
             const text = document.getElementById('smsMessageText').value || '';
             const previewBubble = document.getElementById('previewBubble');
             const previewSender = document.getElementById('previewSender');
             const senderSelect = document.getElementById('smsSenderSelect');
 
-            // Update live phone preview
             previewBubble.textContent = text || 'Wpisz treść wiadomości, aby zobaczyć podgląd na żywo...';
             previewSender.textContent = senderSelect?.value || appConfig.default_sender || 'SMSAPI';
 
-            // Detect Unicode characters
             let isUnicode = false;
             for (let i = 0; i < text.length; i++) {
                 if (!gsm7Chars.includes(text[i])) {
@@ -1547,7 +1842,6 @@
                 unicodeWarning.classList.add('hidden');
             }
 
-            // Calculate parts
             let maxSingle = isUnicode ? 70 : 160;
             let maxConcat = isUnicode ? 67 : 153;
             let charLen = text.length;
@@ -1557,14 +1851,8 @@
                 parts = Math.ceil(charLen / maxConcat);
             }
 
-            const charCounter = document.getElementById('charCounter');
-            const partsBadge = document.getElementById('partsBadge');
-
-            charCounter.textContent = `${charLen} / ${parts > 1 ? parts * maxConcat : maxSingle} zn.`;
-            partsBadge.textContent = `${parts} ${parts === 1 ? 'SMS' : (parts < 5 ? 'SMSy' : 'SMSów')}`;
-            if (isUnicode) {
-                partsBadge.textContent += ' (Unicode)';
-            }
+            document.getElementById('charCounter').textContent = `${charLen} / ${parts > 1 ? parts * maxConcat : maxSingle} zn.`;
+            document.getElementById('partsBadge').textContent = `${parts} ${parts === 1 ? 'SMS' : 'SMS-y'}${isUnicode ? ' (Unicode)' : ''}`;
         }
 
         function normalizeMessageChars() {
@@ -1676,7 +1964,7 @@
             }
         }
 
-        // CSV File Upload & Parsing
+        // CSV Bulk
         function handleCsvFileUpload(event) {
             const file = event.target.files[0];
             if (!file) return;
@@ -1688,12 +1976,7 @@
                     if (results.data && results.data.length > 0) {
                         parsedCsvData = results.data;
                         setupCsvMapping(results.meta.fields || Object.keys(results.data[0]));
-                    } else {
-                        Swal.fire({ icon: 'error', title: 'Błąd pliku', text: 'Plik jest pusty lub ma nieprawidłowy format.' });
                     }
-                },
-                error: function(err) {
-                    Swal.fire({ icon: 'error', title: 'Błąd parsowania CSV', text: err.message });
                 }
             });
         }
@@ -1701,37 +1984,29 @@
         function setupCsvMapping(fields) {
             const phoneColSelect = document.getElementById('csvPhoneColumn');
             const pillsDiv = document.getElementById('csvPlaceholderPills');
-            const workspace = document.getElementById('csvWorkspace');
-            const rowCountBadge = document.getElementById('csvRowCountBadge');
-
             phoneColSelect.innerHTML = fields.map(f => `<option value="${f}">${f}</option>`).join('');
 
-            // Auto-detect phone column
             const phoneField = fields.find(f => /tel|phone|numer|kom|telefon/i.test(f));
             if (phoneField) phoneColSelect.value = phoneField;
 
-            // Generate clickable placeholder pills
             pillsDiv.innerHTML = fields.map(f => `
                 <button type="button" onclick="insertCsvPlaceholder('${f}')" class="px-2 py-1 rounded bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 hover:bg-blue-200 transition-colors">
                     [%${f}%]
                 </button>
             `).join('');
 
-            rowCountBadge.textContent = parsedCsvData.length;
-            workspace.classList.remove('hidden');
-
+            document.getElementById('csvRowCountBadge').textContent = parsedCsvData.length;
+            document.getElementById('csvWorkspace').classList.remove('hidden');
             updateCsvMergedPreview();
         }
 
         function insertCsvPlaceholder(field) {
-            const txtArea = document.getElementById('csvMessageTemplate');
-            txtArea.value += `[%${field}%]`;
+            document.getElementById('csvMessageTemplate').value += `[%${field}%]`;
             updateCsvMergedPreview();
         }
 
         function updateCsvMergedPreview() {
             if (!parsedCsvData || parsedCsvData.length === 0) return;
-
             const phoneField = document.getElementById('csvPhoneColumn').value;
             const template = document.getElementById('csvMessageTemplate').value || '';
             const thead = document.getElementById('csvPreviewThead');
@@ -1757,38 +2032,22 @@
 
         async function startBulkCsvSending() {
             if (!parsedCsvData || parsedCsvData.length === 0) return;
-
             const phoneField = document.getElementById('csvPhoneColumn').value;
             const template = document.getElementById('csvMessageTemplate').value.trim();
             const isTest = document.getElementById('csvChkTest').checked;
             const isNormalize = document.getElementById('csvChkNormalize').checked;
 
             if (!template) {
-                Swal.fire({ icon: 'warning', title: 'Wymagany szablon', text: 'Wprowadź treść wiadomości ze zmiennymi przed rozpoczęciem.' });
+                Swal.fire({ icon: 'warning', title: 'Wymagany szablon', text: 'Wprowadź treść wiadomości ze zmiennymi.' });
                 return;
             }
 
-            const confirm = await Swal.fire({
-                title: 'Rozpocząć wysyłkę masową?',
-                html: `<p>Liczba wiadomości: <b>${parsedCsvData.length}</b></p><p class="text-xs text-slate-500 mt-2">${isTest ? 'Tryb testowy: Punkty nie zostaną pobrane.' : 'Wiadomości zostaną wysłane natychmiast.'}</p>`,
-                icon: 'question',
-                showCancelButton: true,
-                confirmButtonText: 'Tak, wyślij masowo',
-                cancelButtonText: 'Anuluj'
-            });
-
-            if (!confirm.isConfirmed) return;
-
-            // Prepare payload
             const items = parsedCsvData.map(row => {
                 let msg = template;
                 Object.keys(row).forEach(k => {
                     msg = msg.replaceAll(`[%${k}%]`, row[k] || '');
                 });
-                return {
-                    to: row[phoneField],
-                    message: msg
-                };
+                return { to: row[phoneField], message: msg };
             }).filter(i => i.to && i.message);
 
             const progressCard = document.getElementById('csvProgressCard');
@@ -1801,20 +2060,14 @@
             progressCard.classList.remove('hidden');
             btn.disabled = true;
             progressBar.style.width = '30%';
-            progressPercent.textContent = '30%';
 
             try {
                 const res = await fetch('/api/sms/bulk-send', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({
-                        items,
-                        test: isTest,
-                        normalize: isNormalize
-                    })
+                    body: JSON.stringify({ items, test: isTest, normalize: isNormalize })
                 });
                 const data = await res.json();
-
                 progressBar.style.width = '100%';
                 progressPercent.textContent = '100%';
                 sentCounter.textContent = `Wysłano: ${data.sent || 0}`;
@@ -1824,13 +2077,11 @@
                     Swal.fire({
                         icon: 'success',
                         title: 'Zakończono wysyłkę masową!',
-                        html: `<p>Wysłano pomyślnie: <b>${data.sent}</b></p><p>Błędy: <b>${data.failed}</b></p><p class="text-xs text-slate-500 mt-2">Łączny koszt: ${data.total_points?.toFixed(2) || 0} pkt</p>`
+                        html: `<p>Wysłano: <b>${data.sent}</b> | Błędy: <b>${data.failed}</b></p><p class="text-xs text-slate-500 mt-2">Koszt: ${data.total_points?.toFixed(2) || 0} pkt</p>`
                     });
                     fetchBalance();
                     fetchStats();
                     fetchRecentHistory();
-                } else {
-                    Swal.fire({ icon: 'error', title: 'Błąd', text: data.error });
                 }
             } catch (err) {
                 Swal.fire({ icon: 'error', title: 'Błąd połączenia', text: err.message });
@@ -1839,16 +2090,12 @@
             }
         }
 
-        // MFA / 2FA Handlers
+        // MFA Handlers
         async function handleSendMfa(e) {
             e.preventDefault();
             const phone_number = document.getElementById('mfaSendPhone').value.trim();
             const content = document.getElementById('mfaSendContent').value.trim();
             const fast = document.getElementById('mfaFast').checked;
-            const btn = document.getElementById('btnSendMfa');
-
-            btn.disabled = true;
-            btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Generowanie...`;
 
             try {
                 const res = await fetch('/api/mfa/send', {
@@ -1861,13 +2108,10 @@
                     Swal.fire({ icon: 'success', title: 'Kod 2FA wysłany!', text: data.message });
                     document.getElementById('mfaVerifyPhone').value = phone_number;
                 } else {
-                    Swal.fire({ icon: 'error', title: 'Błąd MFA', text: data.error });
+                    Swal.fire({ icon: 'error', title: 'Błąd', text: data.error });
                 }
             } catch (err) {
                 Swal.fire({ icon: 'error', title: 'Błąd', text: err.message });
-            } finally {
-                btn.disabled = false;
-                btn.innerHTML = `<i class="fa-solid fa-paper-plane"></i> Wygeneruj i wyślij kod 2FA`;
             }
         }
 
@@ -1903,22 +2147,19 @@
             const to = document.getElementById('vmsTo').value.trim();
             const tts = document.getElementById('vmsText').value.trim();
             const tts_lector = document.getElementById('vmsLector').value;
-            const tries = document.getElementById('vmsTries').value;
-            const interval = document.getElementById('vmsInterval').value;
 
             try {
                 const res = await fetch('/api/vms/send', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ to, tts, tts_lector, try: tries, interval })
+                    body: JSON.stringify({ to, tts, tts_lector })
                 });
                 const data = await res.json();
                 if (data.success) {
                     Swal.fire({ icon: 'success', title: 'Połączenie VMS zlecone', text: data.message });
                     fetchBalance();
-                    fetchStats();
                 } else {
-                    Swal.fire({ icon: 'error', title: 'Błąd VMS', text: data.error });
+                    Swal.fire({ icon: 'error', title: 'Błąd', text: data.error });
                 }
             } catch (err) {
                 Swal.fire({ icon: 'error', title: 'Błąd', text: err.message });
@@ -1942,7 +2183,7 @@
                     Swal.fire({ icon: 'success', title: 'Wysłano MMS', text: data.message });
                     fetchBalance();
                 } else {
-                    Swal.fire({ icon: 'error', title: 'Błąd MMS', text: data.error });
+                    Swal.fire({ icon: 'error', title: 'Błąd', text: data.error });
                 }
             } catch (err) {
                 Swal.fire({ icon: 'error', title: 'Błąd', text: err.message });
@@ -1965,11 +2206,10 @@
 
         function renderContactsTable(list) {
             const tbody = document.getElementById('contactsTableBody');
-            const countBadge = document.getElementById('contactsCountBadge');
-            countBadge.textContent = `${list.length} kontaktów`;
+            document.getElementById('contactsCountBadge').textContent = `${list.length} kontaktów`;
 
             if (list.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="5" class="py-6 text-center text-slate-400">Brak kontaktów w książce adresowej SMSAPI.</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="5" class="py-6 text-center text-slate-400">Brak kontaktów.</td></tr>`;
                 return;
             }
 
@@ -1996,12 +2236,8 @@
             renderContactsTable(filtered);
         }
 
-        function openAddContactModal() {
-            document.getElementById('addContactModal').classList.remove('hidden');
-        }
-        function closeAddContactModal() {
-            document.getElementById('addContactModal').classList.add('hidden');
-        }
+        function openAddContactModal() { document.getElementById('addContactModal').classList.remove('hidden'); }
+        function closeAddContactModal() { document.getElementById('addContactModal').classList.add('hidden'); }
 
         async function handleCreateContact(e) {
             e.preventDefault();
@@ -2021,8 +2257,6 @@
                     Swal.fire({ icon: 'success', title: 'Dodano kontakt!', text: data.message });
                     closeAddContactModal();
                     fetchContacts();
-                } else {
-                    Swal.fire({ icon: 'error', title: 'Błąd', text: data.error });
                 }
             } catch (err) {
                 Swal.fire({ icon: 'error', title: 'Błąd', text: err.message });
@@ -2039,7 +2273,7 @@
             } catch (e) { console.error(e); }
         }
 
-        // Short URL & HLR Lookup Handlers
+        // Short URL & HLR
         async function handleCreateShortUrl(e) {
             e.preventDefault();
             const url = document.getElementById('shortUrlTarget').value.trim();
@@ -2056,8 +2290,6 @@
                 resultBox.classList.remove('hidden');
                 if (data.success) {
                     resultBox.innerHTML = `<b>Skrócony link utworzony:</b> <a href="${data.short_url}" target="_blank" class="underline font-bold text-cyan-600">${data.short_url}</a>`;
-                } else {
-                    resultBox.innerHTML = `<span class="text-rose-600 font-bold">Błąd: ${data.error}</span>`;
                 }
             } catch (err) {
                 Swal.fire({ icon: 'error', title: 'Błąd', text: err.message });
@@ -2078,25 +2310,17 @@
                 const data = await res.json();
                 box.classList.remove('hidden');
                 if (data.success) {
-                    box.innerHTML = `
-                        <div class="font-bold text-sm text-slate-800 dark:text-white">Wynik zapytania HLR:</div>
-                        <div>Numer: <b>${data.number}</b></div>
-                        <div>Status sieci: <span class="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 font-bold">${data.status}</span></div>
-                        <div>Cena sprawdzenia: <b>${data.price} pkt</b></div>
-                    `;
-                } else {
-                    box.innerHTML = `<span class="text-rose-600 font-bold">Błąd: ${data.error}</span>`;
+                    box.innerHTML = `<div>Numer: <b>${data.number}</b></div><div>Status: <span class="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 font-bold">${data.status}</span></div><div>Cena: <b>${data.price} pkt</b></div>`;
                 }
             } catch (err) {
                 Swal.fire({ icon: 'error', title: 'Błąd', text: err.message });
             }
         }
 
-        // Blacklist Handlers
+        // Blacklist
         async function fetchBlacklist() {
             try {
                 const tbody = document.getElementById('blacklistTableBody');
-                tbody.innerHTML = `<tr><td colspan="3" class="py-6 text-center text-slate-400">Ładowanie czarnej listy...</td></tr>`;
                 const res = await fetch('/api/blacklist');
                 const data = await res.json();
                 const list = data.blacklist || [];
@@ -2115,9 +2339,7 @@
                         </td>
                     </tr>
                 `).join('');
-            } catch (e) {
-                console.error(e);
-            }
+            } catch (e) { console.error(e); }
         }
 
         async function handleAddToBlacklist(e) {
@@ -2134,12 +2356,8 @@
                     Swal.fire({ icon: 'success', title: 'Zablokowano!', text: data.message });
                     document.getElementById('blacklistPhone').value = '';
                     fetchBlacklist();
-                } else {
-                    Swal.fire({ icon: 'error', title: 'Błąd', text: data.error });
                 }
-            } catch (err) {
-                Swal.fire({ icon: 'error', title: 'Błąd', text: err.message });
-            }
+            } catch (err) { Swal.fire({ icon: 'error', title: 'Błąd', text: err.message }); }
         }
 
         async function removeBlacklist(id) {
@@ -2150,7 +2368,7 @@
             } catch (e) { console.error(e); }
         }
 
-        // History Handlers
+        // History
         async function fetchHistory() {
             try {
                 const q = document.getElementById('historySearch')?.value || '';
@@ -2162,13 +2380,14 @@
                 const list = data.history || [];
 
                 if (list.length === 0) {
-                    tbody.innerHTML = `<tr><td colspan="7" class="py-8 text-center text-slate-400">Brak wpisów w historii spełniających kryteria.</td></tr>`;
+                    tbody.innerHTML = `<tr><td colspan="8" class="py-8 text-center text-slate-400">Brak wpisów w historii.</td></tr>`;
                     return;
                 }
 
                 tbody.innerHTML = list.map(item => `
                     <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/30">
                         <td class="py-2.5 px-3 text-slate-500 whitespace-nowrap">${item.created_at || ''}</td>
+                        <td class="py-2.5 px-3 font-semibold text-blue-600">${item.created_by || 'admin'}</td>
                         <td class="py-2.5 px-3"><span class="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">${item.type}</span></td>
                         <td class="py-2.5 px-3 font-semibold">${item.sender || '-'}</td>
                         <td class="py-2.5 px-3 font-medium text-slate-800 dark:text-slate-200">${item.recipients}</td>
@@ -2187,26 +2406,17 @@
         }
 
         async function confirmClearHistory() {
-            const confirm = await Swal.fire({
-                title: 'Wyczyścić całą historię?',
-                text: 'Tej operacji nie można cofnąć.',
-                icon: 'warning',
-                showCancelButton: true,
-                confirmButtonText: 'Tak, wyczyść',
-                cancelButtonText: 'Anuluj'
-            });
+            if (currentUser?.role !== 'admin') return;
+            const confirm = await Swal.fire({ title: 'Wyczyścić całą historię?', text: 'Tej operacji nie można cofnąć.', icon: 'warning', showCancelButton: true });
             if (!confirm.isConfirmed) return;
-
             try {
                 await fetch('/api/history', { method: 'DELETE' });
                 fetchHistory();
                 fetchStats();
-            } catch (e) {
-                console.error(e);
-            }
+            } catch (e) { console.error(e); }
         }
 
-        // Settings Handlers
+        // Settings Handlers (Admin Only)
         function toggleTokenVisibility() {
             const input = document.getElementById('cfgAccessToken');
             const icon = document.getElementById('tokenEyeIcon');
@@ -2222,7 +2432,6 @@
         async function testConnectionWithCurrentInputs() {
             const access_token = document.getElementById('cfgAccessToken').value.trim();
             const domain = document.getElementById('cfgDomain').value;
-
             try {
                 const res = await fetch('/api/test-connection', {
                     method: 'POST',
@@ -2231,17 +2440,11 @@
                 });
                 const data = await res.json();
                 if (data.success) {
-                    Swal.fire({
-                        icon: 'success',
-                        title: 'Połączenie udane!',
-                        html: `<p class="text-sm">${data.message}</p><p class="text-xs text-slate-500 mt-2">Dostępne punkty: <b>${data.balance.points}</b></p>`
-                    });
+                    Swal.fire({ icon: 'success', title: 'Połączenie udane!', html: `<p>${data.message}</p><p class="mt-2 text-xs">Punkty: <b>${data.balance.points}</b></p>` });
                 } else {
                     Swal.fire({ icon: 'error', title: 'Błąd połączenia', text: data.error });
                 }
-            } catch (err) {
-                Swal.fire({ icon: 'error', title: 'Błąd sieci', text: err.message });
-            }
+            } catch (err) { Swal.fire({ icon: 'error', title: 'Błąd sieci', text: err.message }); }
         }
 
         async function handleSaveConfig(e) {
@@ -2262,35 +2465,10 @@
                     fetchConfig();
                     fetchBalance();
                     fetchSenders();
+                } else {
+                    Swal.fire({ icon: 'error', title: 'Błąd', text: data.error });
                 }
-            } catch (err) {
-                Swal.fire({ icon: 'error', title: 'Błąd', text: err.message });
-            }
-        }
-        async function confirmShutdownApp() {
-            const confirm = await Swal.fire({
-                title: 'Zamknąć aplikację?',
-                text: 'Serwer SMSAPI Studio zostanie wyłączony.',
-                icon: 'question',
-                showCancelButton: true,
-                confirmButtonText: 'Tak, wyłącz',
-                cancelButtonText: 'Anuluj',
-                confirmButtonColor: '#ef4444'
-            });
-            if (!confirm.isConfirmed) return;
-
-            try {
-                await fetch('/api/shutdown', { method: 'POST' });
-                Swal.fire({
-                    icon: 'info',
-                    title: 'Aplikacja została zamknięta',
-                    text: 'Możesz teraz zamknąć tę kartę przeglądarki.',
-                    showConfirmButton: false
-                });
-                setTimeout(() => { window.close(); }, 2000);
-            } catch (e) {
-                console.log('App shutdown triggered');
-            }
+            } catch (err) { Swal.fire({ icon: 'error', title: 'Błąd', text: err.message }); }
         }
     </script>
 </body>

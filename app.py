@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 SMSAPI Studio / Web Dashboard & Desktop Application
-A complete management console for SMSAPI services.
+A complete management console for SMSAPI services with Multi-User & Role-Based Access Control.
 """
 
 import os
@@ -10,8 +10,10 @@ import sys
 import json
 import sqlite3
 import datetime
+import functools
 from typing import Dict, Any, List, Optional
-from flask import Flask, render_template, request, jsonify, send_file
+from flask import Flask, render_template, request, jsonify, send_file, session
+from werkzeug.security import generate_password_hash, check_password_hash
 import csv
 import io
 
@@ -25,7 +27,7 @@ from smsapi.exception import SmsApiException, ClientException, EndpointException
 from smsapi.contacts.exceptions import ContactsException
 
 app = Flask(__name__, template_folder='templates', static_folder='static')
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'smsapi-studio-secret-key-2026')
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'smsapi-studio-secret-key-2026-auth')
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16 MB max upload
 
 DB_PATH = os.path.join(CURRENT_DIR, 'smsapi_studio.db')
@@ -50,6 +52,17 @@ def init_db():
                 value TEXT
             )
         ''')
+        # Users table (Multi-user & Roles)
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT UNIQUE NOT NULL,
+                password_hash TEXT NOT NULL,
+                full_name TEXT NOT NULL,
+                role TEXT NOT NULL DEFAULT 'user',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
         # History table
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS history (
@@ -63,9 +76,16 @@ def init_db():
                 points_cost REAL DEFAULT 0.0,
                 msg_ids TEXT,
                 details TEXT,
-                error_message TEXT
+                error_message TEXT,
+                created_by TEXT DEFAULT 'admin'
             )
         ''')
+        # Check if created_by column exists in history, if not add it
+        try:
+            cursor.execute('ALTER TABLE history ADD COLUMN created_by TEXT DEFAULT "admin"')
+        except Exception:
+            pass
+
         # Templates table
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS templates (
@@ -76,7 +96,7 @@ def init_db():
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         ''')
-        # Saved contact lists / groups table (local cache)
+        # Local contacts table
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS local_contacts (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -90,7 +110,17 @@ def init_db():
             )
         ''')
 
-        # Insert default templates if table is empty
+        # Insert default Administrator if no users exist
+        cursor.execute('SELECT COUNT(*) FROM users')
+        if cursor.fetchone()[0] == 0:
+            admin_pwd = generate_password_hash('admin')
+            user_pwd = generate_password_hash('pracownik123')
+            cursor.execute('INSERT INTO users (username, password_hash, full_name, role) VALUES (?, ?, ?, ?)',
+                           ('admin', admin_pwd, 'Administrator', 'admin'))
+            cursor.execute('INSERT INTO users (username, password_hash, full_name, role) VALUES (?, ?, ?, ?)',
+                           ('pracownik', user_pwd, 'Dział Obsługi Klienta', 'user'))
+
+        # Insert default templates if empty
         cursor.execute('SELECT COUNT(*) FROM templates')
         if cursor.fetchone()[0] == 0:
             default_templates = [
@@ -115,7 +145,6 @@ def get_setting(key: str, default: Optional[str] = None) -> Optional[str]:
         row = cursor.fetchone()
         if row:
             return row['value']
-    # Fallback to environment variable if present
     env_map = {
         'access_token': 'SMSAPI_ACCESS_TOKEN',
         'domain': 'SMSAPI_DOMAIN',
@@ -136,16 +165,45 @@ def set_setting(key: str, value: str):
 def log_history(msg_type: str, recipients: str, sender: str, message: str,
                 status: str, points_cost: float = 0.0, msg_ids: str = '',
                 details: str = '', error_message: str = ''):
+    current_username = session.get('user', {}).get('username', 'admin')
     try:
         with get_db() as conn:
             cursor = conn.cursor()
             cursor.execute('''
-                INSERT INTO history (type, recipients, sender, message, status, points_cost, msg_ids, details, error_message)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ''', (msg_type, recipients, sender or '', message or '', status, points_cost, msg_ids, details, error_message))
+                INSERT INTO history (type, recipients, sender, message, status, points_cost, msg_ids, details, error_message, created_by)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (msg_type, recipients, sender or '', message or '', status, points_cost, msg_ids, details, error_message, current_username))
             conn.commit()
     except Exception as e:
         print(f"Error logging to history: {e}", file=sys.stderr)
+
+
+# ==========================================================
+# Auth Decorators & Helpers
+# ==========================================================
+def get_current_user():
+    return session.get('user')
+
+
+def login_required(f):
+    @functools.wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not session.get('user'):
+            return jsonify({'success': False, 'error': 'Wymagane logowanie.', 'unauthorized': True}), 401
+        return f(*args, **kwargs)
+    return decorated_function
+
+
+def admin_required(f):
+    @functools.wraps(f)
+    def decorated_function(*args, **kwargs):
+        user = session.get('user')
+        if not user:
+            return jsonify({'success': False, 'error': 'Wymagane logowanie.', 'unauthorized': True}), 401
+        if user.get('role') != 'admin':
+            return jsonify({'success': False, 'error': 'Brak uprawnień. Ta funkcja jest dostępna tylko dla Administratora.'}), 403
+        return f(*args, **kwargs)
+    return decorated_function
 
 
 # ==========================================================
@@ -154,7 +212,7 @@ def log_history(msg_type: str, recipients: str, sender: str, message: str,
 def get_smsapi_client():
     token = get_setting('access_token')
     if not token or not token.strip():
-        raise ClientException("Brak skonfigurowanego tokenu API. Przejdź do Ustawień i wprowadź swój token OAuth SMSAPI.")
+        raise ClientException("Brak skonfigurowanego tokenu API. Administrator musi wprowadzić token OAuth SMSAPI w Ustawieniach.")
 
     domain = get_setting('domain', 'https://api.smsapi.pl/')
     token = token.strip()
@@ -170,7 +228,145 @@ def get_smsapi_client():
 
 
 # ==========================================================
-# API Routes: Config & Settings
+# API Routes: Authentication (Login / Logout / Current User)
+# ==========================================================
+@app.route('/api/auth/login', methods=['POST'])
+def api_login():
+    data = request.json or {}
+    username = data.get('username', '').strip().lower()
+    password = data.get('password', '')
+
+    if not username or not password:
+        return jsonify({'success': False, 'error': 'Wpisz login i hasło.'}), 400
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute('SELECT * FROM users WHERE LOWER(username) = ?', (username,))
+        row = cursor.fetchone()
+
+        if not row or not check_password_hash(row['password_hash'], password):
+            return jsonify({'success': False, 'error': 'Nieprawidłowy login lub hasło.'}), 401
+
+        user_data = {
+            'id': row['id'],
+            'username': row['username'],
+            'full_name': row['full_name'],
+            'role': row['role']
+        }
+        session['user'] = user_data
+        session.permanent = True
+
+        return jsonify({'success': True, 'message': f'Zalogowano jako {row["full_name"]}', 'user': user_data})
+
+
+@app.route('/api/auth/logout', methods=['POST'])
+def api_logout():
+    session.pop('user', None)
+    return jsonify({'success': True, 'message': 'Wylogowano pomyślnie.'})
+
+
+@app.route('/api/auth/me', methods=['GET'])
+def api_me():
+    user = session.get('user')
+    if user:
+        return jsonify({'is_authenticated': True, 'user': user})
+    return jsonify({'is_authenticated': False, 'user': None})
+
+
+# ==========================================================
+# API Routes: User Management (Admin Only)
+# ==========================================================
+@app.route('/api/users', methods=['GET'])
+@admin_required
+def list_users():
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute('SELECT id, username, full_name, role, created_at FROM users ORDER BY id ASC')
+        rows = cursor.fetchall()
+        users_list = [dict(r) for r in rows]
+    return jsonify({'success': True, 'users': users_list})
+
+
+@app.route('/api/users', methods=['POST'])
+@admin_required
+def create_user():
+    data = request.json or {}
+    username = data.get('username', '').strip().lower()
+    password = data.get('password', '').strip()
+    full_name = data.get('full_name', '').strip()
+    role = data.get('role', 'user').strip()
+
+    if not username or not password or not full_name:
+        return jsonify({'success': False, 'error': 'Login, hasło oraz imię i nazwisko są wymagane.'}), 400
+
+    if role not in ('admin', 'user'):
+        role = 'user'
+
+    try:
+        with get_db() as conn:
+            cursor = conn.cursor()
+            pwd_hash = generate_password_hash(password)
+            cursor.execute('INSERT INTO users (username, password_hash, full_name, role) VALUES (?, ?, ?, ?)',
+                           (username, pwd_hash, full_name, role))
+            conn.commit()
+            new_id = cursor.lastrowid
+        return jsonify({'success': True, 'message': f'Użytkownik "{username}" został pomyślnie utworzony.', 'id': new_id})
+    except sqlite3.IntegrityError:
+        return jsonify({'success': False, 'error': f'Użytkownik o loginie "{username}" już istnieje.'}), 400
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/users/<int:user_id>', methods=['PUT'])
+@admin_required
+def update_user_info(user_id):
+    data = request.json or {}
+    full_name = data.get('full_name', '').strip()
+    role = data.get('role', 'user').strip()
+    password = data.get('password', '').strip()
+
+    if not full_name:
+        return jsonify({'success': False, 'error': 'Imię i nazwisko są wymagane.'}), 400
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+        if password:
+            pwd_hash = generate_password_hash(password)
+            cursor.execute('UPDATE users SET full_name = ?, role = ?, password_hash = ? WHERE id = ?',
+                           (full_name, role, pwd_hash, user_id))
+        else:
+            cursor.execute('UPDATE users SET full_name = ?, role = ? WHERE id = ?',
+                           (full_name, role, user_id))
+        conn.commit()
+
+    return jsonify({'success': True, 'message': 'Dane użytkownika zostały zaktualizowane.'})
+
+
+@app.route('/api/users/<int:user_id>', methods=['DELETE'])
+@admin_required
+def delete_user(user_id):
+    current_user = session.get('user', {})
+    if current_user.get('id') == user_id:
+        return jsonify({'success': False, 'error': 'Nie możesz usunąć aktualnie zalogowanego konta.'}), 400
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute('SELECT COUNT(*) FROM users WHERE role = "admin"')
+        admin_count = cursor.fetchone()[0]
+
+        cursor.execute('SELECT role FROM users WHERE id = ?', (user_id,))
+        target_user = cursor.fetchone()
+        if target_user and target_user['role'] == 'admin' and admin_count <= 1:
+            return jsonify({'success': False, 'error': 'Nie można usunąć jedynego administratora w systemie.'}), 400
+
+        cursor.execute('DELETE FROM users WHERE id = ?', (user_id,))
+        conn.commit()
+
+    return jsonify({'success': True, 'message': 'Użytkownik został usunięty.'})
+
+
+# ==========================================================
+# API Routes: Config & Settings (Admin Only for Edit)
 # ==========================================================
 @app.route('/api/config', methods=['GET'])
 def get_config():
@@ -194,6 +390,7 @@ def get_config():
 
 
 @app.route('/api/config', methods=['POST'])
+@admin_required
 def save_config():
     data = request.json or {}
     token = data.get('access_token')
@@ -211,6 +408,7 @@ def save_config():
 
 
 @app.route('/api/test-connection', methods=['POST'])
+@admin_required
 def test_connection():
     data = request.json or {}
     test_token = data.get('access_token')
@@ -279,7 +477,6 @@ def list_senders():
         client = get_smsapi_client()
         result = client.sender.list()
         senders_list = []
-        # result can be collection of SenderNameResult
         for item in result:
             senders_list.append({
                 'sender': getattr(item, 'sender', str(item)),
@@ -292,6 +489,7 @@ def list_senders():
 
 
 @app.route('/api/senders', methods=['POST'])
+@admin_required
 def add_sender():
     data = request.json or {}
     name = data.get('name', '').strip()
@@ -306,6 +504,7 @@ def add_sender():
 
 
 @app.route('/api/senders/default', methods=['POST'])
+@admin_required
 def set_default_sender():
     data = request.json or {}
     name = data.get('name', '').strip()
@@ -321,6 +520,7 @@ def set_default_sender():
 
 
 @app.route('/api/senders/<name>', methods=['DELETE'])
+@admin_required
 def delete_sender(name):
     try:
         client = get_smsapi_client()
@@ -344,19 +544,17 @@ def send_sms():
     is_test = bool(data.get('test'))
     normalize = bool(data.get('normalize'))
     nounicode = bool(data.get('nounicode'))
-    scheduled_date = data.get('date')  # Unix timestamp or date string
+    scheduled_date = data.get('date')
 
     if not raw_to:
         return jsonify({'success': False, 'error': 'Podaj przynajmniej jeden numer telefonu.'}), 400
     if not message:
         return jsonify({'success': False, 'error': 'Wiadomość nie może być pusta.'}), 400
 
-    # Parse recipients list (support comma/newline/semicolon/list)
     recipients = []
     if isinstance(raw_to, list):
         recipients = [str(n).strip() for n in raw_to if str(n).strip()]
     elif isinstance(raw_to, str):
-        # Split by comma, newline, semicolon
         cleaned = raw_to.replace(';', ',').replace('\n', ',').replace('\r', '')
         recipients = [n.strip() for n in cleaned.split(',') if n.strip()]
 
@@ -387,13 +585,11 @@ def send_sms():
         else:
             results = client.sms.send(**params)
 
-        # Parse results
         total_points = 0.0
         msg_ids = []
         errors = []
         results_data = []
 
-        # results is iterable (ResultCollection or list)
         for res in results:
             item_id = getattr(res, 'id', None)
             item_points = float(getattr(res, 'points', 0.0) or 0.0)
@@ -455,29 +651,12 @@ def send_sms():
 
 
 # ==========================================================
-# API Routes: Cancel Scheduled SMS
-# ==========================================================
-@app.route('/api/sms/cancel-scheduled', methods=['POST'])
-def cancel_scheduled_sms():
-    data = request.json or {}
-    msg_id = data.get('id')
-    if not msg_id:
-        return jsonify({'success': False, 'error': 'ID zaplanowanej wiadomości jest wymagane.'}), 400
-    try:
-        client = get_smsapi_client()
-        res = client.sms.remove_scheduled(id=str(msg_id))
-        return jsonify({'success': True, 'message': f'Pomyślnie anulowano zaplanowaną wiadomość o ID: {msg_id}'})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 400
-
-
-# ==========================================================
-# API Routes: Bulk SMS from CSV / JSON
+# API Routes: Bulk SMS from CSV
 # ==========================================================
 @app.route('/api/sms/bulk-send', methods=['POST'])
 def bulk_send_sms():
     data = request.json or {}
-    items = data.get('items', [])  # list of {to: str, message: str, ...}
+    items = data.get('items', [])
     from_sender = data.get('from', '').strip() or get_setting('default_sender') or None
     is_test = bool(data.get('test'))
     normalize = bool(data.get('normalize'))
@@ -546,7 +725,7 @@ def bulk_send_sms():
 
 
 # ==========================================================
-# API Routes: 2FA / MFA (Multi-Factor Authentication)
+# API Routes: 2FA / MFA
 # ==========================================================
 @app.route('/api/mfa/send', methods=['POST'])
 def send_mfa():
@@ -608,7 +787,6 @@ def verify_mfa():
     try:
         client = get_smsapi_client()
         result = client.mfa.verify_mfa(phone_number=phone_number, code=code)
-        # Verify result
         log_history(
             msg_type='MFA_WERYFIKACJA',
             recipients=phone_number,
@@ -635,7 +813,7 @@ def verify_mfa():
 
 
 # ==========================================================
-# API Routes: Voice SMS (VMS) & MMS
+# API Routes: VMS & MMS
 # ==========================================================
 @app.route('/api/vms/send', methods=['POST'])
 def send_vms():
@@ -656,26 +834,9 @@ def send_vms():
         if not hasattr(client, 'vms'):
             return jsonify({'success': False, 'error': 'VMS jest dostępny tylko dla klientów SMSAPI.pl'}), 400
 
-        result = client.vms.send(
-            to=to_number,
-            tts=tts_text,
-            tts_lector=tts_lector,
-            try_=tries,
-            interval=interval
-        )
-        log_history(
-            msg_type='VMS_GLOSOWY',
-            recipients=to_number,
-            sender=f'Lektor: {tts_lector}',
-            message=tts_text,
-            status='SENT',
-            details=f"Lektor: {tts_lector}, Próby: {tries}"
-        )
-        return jsonify({
-            'success': True,
-            'message': f'Wiadomość głosowa VMS została zakolejkowana dla numeru {to_number}.',
-            'result': str(result)
-        })
+        result = client.vms.send(to=to_number, tts=tts_text, tts_lector=tts_lector, try_=tries, interval=interval)
+        log_history(msg_type='VMS_GLOSOWY', recipients=to_number, sender=f'Lektor: {tts_lector}', message=tts_text, status='SENT')
+        return jsonify({'success': True, 'message': f'Wiadomość głosowa VMS została zakolejkowana dla numeru {to_number}.', 'result': str(result)})
     except Exception as e:
         return jsonify({'success': False, 'error': f'Błąd wysyłki VMS: {str(e)}'}), 400
 
@@ -687,31 +848,23 @@ def send_mms():
     subject = data.get('subject', '').strip()
     smil_content = data.get('smil', '').strip()
 
-    if not to_number:
-        return jsonify({'success': False, 'error': 'Numer telefonu jest wymagany.'}), 400
-    if not smil_content:
-        return jsonify({'success': False, 'error': 'Treść SMIL wiadomości MMS jest wymagana.'}), 400
+    if not to_number or not smil_content:
+        return jsonify({'success': False, 'error': 'Numer i treść SMIL są wymagane.'}), 400
 
     try:
         client = get_smsapi_client()
         if not hasattr(client, 'mms'):
-            return jsonify({'success': False, 'error': 'MMS jest dostępny tylko dla klientów SMSAPI.pl'}), 400
+            return jsonify({'success': False, 'error': 'MMS jest dostępny tylko dla SMSAPI.pl'}), 400
 
         result = client.mms.send(to=to_number, subject=subject or 'MMS', smil=smil_content)
-        log_history(
-            msg_type='MMS',
-            recipients=to_number,
-            sender='SMSAPI MMS',
-            message=f"Temat: {subject}\nSMIL: {smil_content[:50]}...",
-            status='SENT'
-        )
+        log_history(msg_type='MMS', recipients=to_number, sender='SMSAPI MMS', message=f"Temat: {subject}", status='SENT')
         return jsonify({'success': True, 'message': f'Wiadomość MMS została wysłana do {to_number}.', 'result': str(result)})
     except Exception as e:
         return jsonify({'success': False, 'error': f'Błąd wysyłki MMS: {str(e)}'}), 400
 
 
 # ==========================================================
-# API Routes: HLR Lookup (Number Validation)
+# API Routes: ShortURL & HLR
 # ==========================================================
 @app.route('/api/hlr', methods=['POST'])
 def check_hlr():
@@ -723,36 +876,17 @@ def check_hlr():
     try:
         client = get_smsapi_client()
         res = client.hlr.check_number(number=number)
-        return jsonify({
-            'success': True,
-            'number': getattr(res, 'number', number),
-            'status': getattr(res, 'status', 'OK'),
-            'id': getattr(res, 'id', ''),
-            'price': getattr(res, 'price', 0)
-        })
+        return jsonify({'success': True, 'number': getattr(res, 'number', number), 'status': getattr(res, 'status', 'OK'), 'price': getattr(res, 'price', 0)})
     except Exception as e:
         return jsonify({'success': False, 'error': f'Błąd zapytania HLR: {str(e)}'}), 400
 
 
-# ==========================================================
-# API Routes: Short URL (idz.do)
-# ==========================================================
 @app.route('/api/shorturl', methods=['GET'])
 def list_short_urls():
     try:
         client = get_smsapi_client()
         urls = client.shorturl.list_short_urls()
-        res_list = []
-        for u in urls:
-            res_list.append({
-                'id': getattr(u, 'id', ''),
-                'name': getattr(u, 'name', ''),
-                'url': getattr(u, 'url', ''),
-                'short_url': getattr(u, 'short_url', ''),
-                'hits': getattr(u, 'hits', 0),
-                'hits_unique': getattr(u, 'hits_unique', 0),
-                'description': getattr(u, 'description', '')
-            })
+        res_list = [{'id': getattr(u, 'id', ''), 'name': getattr(u, 'name', ''), 'url': getattr(u, 'url', ''), 'short_url': getattr(u, 'short_url', ''), 'hits': getattr(u, 'hits', 0)} for u in urls]
         return jsonify({'success': True, 'links': res_list})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e), 'links': []}), 400
@@ -763,46 +897,26 @@ def create_short_url():
     data = request.json or {}
     url = data.get('url', '').strip()
     name = data.get('name', '').strip()
-    description = data.get('description', '').strip()
-
     if not url:
         return jsonify({'success': False, 'error': 'Adres URL jest wymagany.'}), 400
 
     try:
         client = get_smsapi_client()
-        res = client.shorturl.create_short_url(url=url, name=name or None, description=description or None)
-        return jsonify({
-            'success': True,
-            'message': 'Skrócony link został utworzony!',
-            'short_url': getattr(res, 'short_url', ''),
-            'id': getattr(res, 'id', ''),
-            'url': getattr(res, 'url', url),
-            'name': getattr(res, 'name', name)
-        })
+        res = client.shorturl.create_short_url(url=url, name=name or None)
+        return jsonify({'success': True, 'message': 'Skrócony link został utworzony!', 'short_url': getattr(res, 'short_url', '')})
     except Exception as e:
-        return jsonify({'success': False, 'error': f'Błąd tworzenia skróconego linku: {str(e)}'}), 400
+        return jsonify({'success': False, 'error': f'Błąd: {str(e)}'}), 400
 
 
 # ==========================================================
-# API Routes: Contacts & Groups
+# API Routes: Contacts & Blacklist
 # ==========================================================
 @app.route('/api/contacts', methods=['GET'])
 def list_contacts():
     try:
         client = get_smsapi_client()
         contacts = client.contacts.list_contacts()
-        c_list = []
-        for c in contacts:
-            c_list.append({
-                'id': getattr(c, 'id', ''),
-                'first_name': getattr(c, 'first_name', ''),
-                'last_name': getattr(c, 'last_name', ''),
-                'phone_number': getattr(c, 'phone_number', ''),
-                'email': getattr(c, 'email', ''),
-                'gender': getattr(c, 'gender', ''),
-                'city': getattr(c, 'city', ''),
-                'description': getattr(c, 'description', '')
-            })
+        c_list = [{'id': getattr(c, 'id', ''), 'first_name': getattr(c, 'first_name', ''), 'last_name': getattr(c, 'last_name', ''), 'phone_number': getattr(c, 'phone_number', ''), 'email': getattr(c, 'email', ''), 'city': getattr(c, 'city', '')} for c in contacts]
         return jsonify({'success': True, 'contacts': c_list})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e), 'contacts': []}), 400
@@ -812,79 +926,32 @@ def list_contacts():
 def create_contact():
     data = request.json or {}
     phone_number = data.get('phone_number', '').strip()
-    first_name = data.get('first_name', '').strip()
-    last_name = data.get('last_name', '').strip()
-    email = data.get('email', '').strip()
-    gender = data.get('gender', 'undefined')
-    description = data.get('description', '').strip()
-
     if not phone_number:
         return jsonify({'success': False, 'error': 'Numer telefonu jest wymagany.'}), 400
-
     try:
         client = get_smsapi_client()
-        res = client.contacts.create_contact(
-            phone_number=phone_number,
-            first_name=first_name or None,
-            last_name=last_name or None,
-            email=email or None,
-            gender=gender,
-            description=description or None
-        )
-        return jsonify({'success': True, 'message': 'Kontakt został dodany do SMSAPI!', 'id': getattr(res, 'id', '')})
-    except Exception as e:
-        return jsonify({'success': False, 'error': f'Błąd dodawania kontaktu: {str(e)}'}), 400
-
-
-@app.route('/api/contacts/groups', methods=['GET'])
-def list_contact_groups():
-    try:
-        client = get_smsapi_client()
-        groups = client.contacts.list_groups()
-        g_list = []
-        for g in groups:
-            g_list.append({
-                'id': getattr(g, 'id', ''),
-                'name': getattr(g, 'name', ''),
-                'description': getattr(g, 'description', ''),
-                'contacts_count': getattr(g, 'contacts_count', 0)
-            })
-        return jsonify({'success': True, 'groups': g_list})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e), 'groups': []}), 400
-
-
-@app.route('/api/contacts/groups', methods=['POST'])
-def create_contact_group():
-    data = request.json or {}
-    name = data.get('name', '').strip()
-    description = data.get('description', '').strip()
-    if not name:
-        return jsonify({'success': False, 'error': 'Nazwa grupy jest wymagana.'}), 400
-    try:
-        client = get_smsapi_client()
-        res = client.contacts.create_group(name=name, description=description or None)
-        return jsonify({'success': True, 'message': f'Grupa "{name}" została utworzona.', 'id': getattr(res, 'id', '')})
+        res = client.contacts.create_contact(phone_number=phone_number, first_name=data.get('first_name'), last_name=data.get('last_name'), email=data.get('email'))
+        return jsonify({'success': True, 'message': 'Kontakt został dodany!', 'id': getattr(res, 'id', '')})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 400
 
 
-# ==========================================================
-# API Routes: Blacklist (Czarna lista numerów)
-# ==========================================================
+@app.route('/api/contacts/<id>', methods=['DELETE'])
+def delete_contact(id):
+    try:
+        client = get_smsapi_client()
+        client.contacts.delete_contact(contact_id=id)
+        return jsonify({'success': True, 'message': 'Usunięto kontakt.'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+
+
 @app.route('/api/blacklist', methods=['GET'])
 def list_blacklist():
     try:
         client = get_smsapi_client()
         numbers = client.blacklist.list_phone_numbers()
-        b_list = []
-        for n in numbers:
-            b_list.append({
-                'id': getattr(n, 'id', ''),
-                'phone_number': getattr(n, 'phone_number', ''),
-                'expire_at': getattr(n, 'expire_at', ''),
-                'created_at': getattr(n, 'created_at', '')
-            })
+        b_list = [{'id': getattr(n, 'id', ''), 'phone_number': getattr(n, 'phone_number', ''), 'created_at': getattr(n, 'created_at', '')} for n in numbers]
         return jsonify({'success': True, 'blacklist': b_list})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e), 'blacklist': []}), 400
@@ -894,18 +961,12 @@ def list_blacklist():
 def add_to_blacklist():
     data = request.json or {}
     phone_number = data.get('phone_number', '').strip()
-    expire_at = data.get('expire_at', '').strip() or None
-
     if not phone_number:
-        return jsonify({'success': False, 'error': 'Numer telefonu jest wymagany.'}), 400
-
+        return jsonify({'success': False, 'error': 'Numer jest wymagany.'}), 400
     try:
         client = get_smsapi_client()
-        params = {'phone_number': phone_number}
-        if expire_at:
-            params['expire_at'] = expire_at
-        res = client.blacklist.add_phone_number(**params)
-        return jsonify({'success': True, 'message': f'Numer {phone_number} został dodany do czarnej listy.', 'id': getattr(res, 'id', '')})
+        res = client.blacklist.add_phone_number(phone_number=phone_number)
+        return jsonify({'success': True, 'message': f'Zablokowano {phone_number}', 'id': getattr(res, 'id', '')})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 400
 
@@ -915,13 +976,13 @@ def remove_from_blacklist(id):
     try:
         client = get_smsapi_client()
         client.blacklist.delete_phone_number(id=id)
-        return jsonify({'success': True, 'message': f'Usunięto wpis {id} z czarnej listy.'})
+        return jsonify({'success': True, 'message': 'Usunięto wpis z czarnej listy.'})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 400
 
 
 # ==========================================================
-# API Routes: History & Dashboard Stats
+# API Routes: History & Statistics
 # ==========================================================
 @app.route('/api/history', methods=['GET'])
 def get_history():
@@ -934,8 +995,8 @@ def get_history():
         query = 'SELECT * FROM history WHERE 1=1'
         params = []
         if search:
-            query += ' AND (recipients LIKE ? OR message LIKE ? OR sender LIKE ?)'
-            params.extend([f'%{search}%', f'%{search}%', f'%{search}%'])
+            query += ' AND (recipients LIKE ? OR message LIKE ? OR sender LIKE ? OR created_by LIKE ?)'
+            params.extend([f'%{search}%', f'%{search}%', f'%{search}%', f'%{search}%'])
         if msg_type:
             query += ' AND type LIKE ?'
             params.append(f'%{msg_type}%')
@@ -950,6 +1011,7 @@ def get_history():
 
 
 @app.route('/api/history', methods=['DELETE'])
+@admin_required
 def clear_history():
     with get_db() as conn:
         cursor = conn.cursor()
@@ -962,12 +1024,12 @@ def clear_history():
 def export_history_csv():
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute('SELECT created_at, type, recipients, sender, message, status, points_cost, msg_ids, error_message FROM history ORDER BY id DESC')
+        cursor.execute('SELECT created_at, created_by, type, recipients, sender, message, status, points_cost, msg_ids, error_message FROM history ORDER BY id DESC')
         rows = cursor.fetchall()
 
     output = io.StringIO()
     writer = csv.writer(output)
-    writer.writerow(['Data i godzina', 'Typ wiadomości', 'Odbiorcy', 'Nadawca', 'Treść wiadomości', 'Status', 'Koszt (pkt)', 'ID wiadomości', 'Błędy'])
+    writer.writerow(['Data i godzina', 'Użytkownik', 'Typ wiadomości', 'Odbiorcy', 'Nadawca', 'Treść wiadomości', 'Status', 'Koszt (pkt)', 'ID wiadomości', 'Błędy'])
     for r in rows:
         writer.writerow(list(r))
 
@@ -989,12 +1051,10 @@ def get_stats():
         total_count = total_count or 0
         total_points = float(total_points or 0.0)
 
-        # Count sent today
         today_str = datetime.date.today().isoformat()
         cursor.execute('SELECT COUNT(*) FROM history WHERE DATE(created_at) = DATE(?)', (today_str,))
         today_count = cursor.fetchone()[0] or 0
 
-        # Success rate
         cursor.execute("SELECT COUNT(*) FROM history WHERE status = 'SUCCESS'")
         success_count = cursor.fetchone()[0] or 0
         success_rate = (success_count / total_count * 100) if total_count > 0 else 100.0
@@ -1067,21 +1127,18 @@ def delete_template(id):
 
 
 # ==========================================================
-# API Routes: Shutdown Application (Only Localhost)
+# API Routes: Shutdown Application (Admin Only)
 # ==========================================================
 @app.route('/api/shutdown', methods=['POST'])
+@admin_required
 def shutdown_app():
-    # Only allow shutdown if requested directly from the host machine (localhost)
-    if request.remote_addr not in ('127.0.0.1', 'localhost', '::1'):
-        return jsonify({'success': False, 'error': 'Zdalne wyłączanie serwera jest zablokowane ze względów bezpieczeństwa.'}), 403
-
     def stop_server():
+        import time
         time.sleep(0.5)
         os._exit(0)
     import threading
-    import time
     threading.Thread(target=stop_server, daemon=True).start()
-    return jsonify({'success': True, 'message': 'Aplikacja SMSAPI Studio została pomyślnie zamknięta.'})
+    return jsonify({'success': True, 'message': 'Serwer aplikacji SMSAPI Studio został pomyślnie wyłączony.'})
 
 
 # ==========================================================
