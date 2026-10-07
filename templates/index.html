@@ -3102,36 +3102,74 @@
         }
 
         function showCallbackSetupModal() {
-            const callbackUrl = window.location.origin + '/api/callbacks/sms';
+            const base = window.location.origin;
+            const cbSms = base + '/api/callbacks/sms';
+            const cbShort = base + '/api/callbacks/shorturl';
+            const cbInbound = base + '/api/callbacks/inbound';
+
             Swal.fire({
-                title: 'Konfiguracja Callback DLR (Raporty doręczeń)',
+                title: 'Konfiguracja Callback Webhooków SMSAPI',
                 html: `
-                    <div class="text-left text-xs space-y-3 text-slate-600 dark:text-slate-300">
-                        <p>Aby statusy w historii automatycznie aktualizowały się na <b>DORĘCZONA (DELIVERED)</b> lub <b>NIEDORĘCZONA (UNDELIVERED)</b> natychmiast po odebraniu SMS-a przez telefon klienta, ustaw poniższy adres Callback w panelu SMSAPI:</p>
+                    <div class="text-left text-xs space-y-3.5 text-slate-600 dark:text-slate-300">
+                        <p class="leading-relaxed">
+                            Wszystkie webhooki callback w SMSAPI są <b>w 100% BEZPŁATNE</b>. Wybierz i skopiuj poniższe adresy do Panelu SMSAPI (<a href="https://ssl.smsapi.pl/react/callbacks" target="_blank" class="underline font-bold text-blue-600">Ustawienia API &rarr; Adresy Callback</a>):
+                        </p>
                         
-                        <div class="p-3 bg-slate-100 dark:bg-slate-700/60 rounded-xl border border-slate-200 dark:border-slate-600">
-                            <label class="block text-[10px] uppercase font-bold text-slate-400 mb-1">Twój Adres Callback DLR:</label>
+                        <!-- 1. Raporty SMS DLR -->
+                        <div class="p-2.5 bg-slate-50 dark:bg-slate-700/60 rounded-xl border border-slate-200 dark:border-slate-600">
+                            <div class="flex items-center justify-between mb-1">
+                                <span class="font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
+                                    <i class="fa-solid fa-check-double text-emerald-500"></i> 1. Adres callback - raporty SMS (DLR)
+                                </span>
+                                <span class="text-[10px] text-emerald-600 font-semibold uppercase">Zalecane</span>
+                            </div>
                             <div class="flex items-center gap-2">
-                                <input type="text" readonly id="swalCallbackUrl" value="${callbackUrl}" class="flex-1 bg-white dark:bg-slate-800 px-3 py-1.5 rounded-lg font-mono text-[11px] text-blue-600 dark:text-blue-300 border border-slate-300 dark:border-slate-600 outline-none select-all">
-                                <button type="button" onclick="navigator.clipboard.writeText(document.getElementById('swalCallbackUrl').value); alert('Skopiowano adres Callback do schowka!');" class="px-3 py-1.5 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors">
+                                <input type="text" readonly id="cbUrlSms" value="${cbSms}" class="flex-1 bg-white dark:bg-slate-800 px-2.5 py-1.5 rounded-lg font-mono text-[11px] text-blue-600 dark:text-blue-300 border border-slate-300 dark:border-slate-600 outline-none select-all">
+                                <button type="button" onclick="navigator.clipboard.writeText(document.getElementById('cbUrlSms').value); alert('Skopiowano adres raportów SMS!');" class="px-3 py-1.5 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors text-xs">
                                     Kopiuj
                                 </button>
                             </div>
+                            <p class="text-[10px] text-slate-400 mt-1">Automatycznie zmienia status w historii na DORĘCZONA / NIEDORĘCZONA.</p>
                         </div>
 
-                        <div class="space-y-1.5 bg-amber-50 dark:bg-amber-950/30 p-3 rounded-xl border border-amber-200 dark:border-amber-900/40 text-amber-900 dark:text-amber-200">
-                            <div class="font-bold">Gdzie to wkleić w Panelu SMSAPI?</div>
-                            <ol class="list-decimal pl-4 space-y-1 text-[11px]">
-                                <li>Zaloguj się na <a href="https://ssl.smsapi.pl" target="_blank" class="underline font-bold text-blue-600">smsapi.pl</a></li>
-                                <li>Przejdź do: <b>Ustawienia API &rarr; Adresy Callback</b></li>
-                                <li>W sekcji <b>Callback SMS (raporty doręczeń)</b> wklej powyższy URL i zapisz.</li>
-                            </ol>
+                        <!-- 2. Kliknięcia w idz.do -->
+                        <div class="p-2.5 bg-slate-50 dark:bg-slate-700/60 rounded-xl border border-slate-200 dark:border-slate-600">
+                            <div class="flex items-center justify-between mb-1">
+                                <span class="font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
+                                    <i class="fa-solid fa-chart-pie text-cyan-500"></i> 2. Adres callback - kliknięcia w idz.do
+                                </span>
+                                <span class="text-[10px] text-cyan-600 font-semibold uppercase">Zalecane</span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <input type="text" readonly id="cbUrlShort" value="${cbShort}" class="flex-1 bg-white dark:bg-slate-800 px-2.5 py-1.5 rounded-lg font-mono text-[11px] text-blue-600 dark:text-blue-300 border border-slate-300 dark:border-slate-600 outline-none select-all">
+                                <button type="button" onclick="navigator.clipboard.writeText(document.getElementById('cbUrlShort').value); alert('Skopiowano adres kliknięć idz.do!');" class="px-3 py-1.5 bg-cyan-600 text-white rounded-lg font-semibold hover:bg-cyan-700 transition-colors text-xs">
+                                    Kopiuj
+                                </button>
+                            </div>
+                            <p class="text-[10px] text-slate-400 mt-1">Rejestruje natychmiast każde kliknięcie w link ze szczegółami urządzenia.</p>
+                        </div>
+
+                        <!-- 3. Odbiór SMS (2Way) -->
+                        <div class="p-2.5 bg-slate-50 dark:bg-slate-700/60 rounded-xl border border-slate-200 dark:border-slate-600">
+                            <div class="flex items-center justify-between mb-1">
+                                <span class="font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
+                                    <i class="fa-solid fa-inbox text-purple-500"></i> 3. Adres callback - odbiór SMS (2Way)
+                                </span>
+                                <span class="text-[10px] text-purple-600 font-semibold uppercase">Opcjonalne</span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <input type="text" readonly id="cbUrlInbound" value="${cbInbound}" class="flex-1 bg-white dark:bg-slate-800 px-2.5 py-1.5 rounded-lg font-mono text-[11px] text-blue-600 dark:text-blue-300 border border-slate-300 dark:border-slate-600 outline-none select-all">
+                                <button type="button" onclick="navigator.clipboard.writeText(document.getElementById('cbUrlInbound').value); alert('Skopiowano adres odbioru SMS!');" class="px-3 py-1.5 bg-purple-600 text-white rounded-lg font-semibold hover:bg-purple-700 transition-colors text-xs">
+                                    Kopiuj
+                                </button>
+                            </div>
+                            <p class="text-[10px] text-slate-400 mt-1">Przekazuje odpowiedzi i wiadomości przychodzące od klientów do aplikacji.</p>
                         </div>
                     </div>
                 `,
-                confirmButtonText: 'Rozumiem',
+                confirmButtonText: 'Zamknij',
                 confirmButtonColor: '#2563eb',
-                width: '600px'
+                width: '620px'
             });
         }
 

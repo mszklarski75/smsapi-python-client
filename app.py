@@ -119,6 +119,34 @@ def init_db():
             )
         ''')
 
+        # Inbound SMS (2-way customer replies)
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS inbound_sms (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                from_number TEXT NOT NULL,
+                to_number TEXT,
+                message TEXT,
+                raw_payload TEXT,
+                is_read INTEGER DEFAULT 0
+            )
+        ''')
+
+        # Short URL clicks webhook audit log
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS shorturl_clicks_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                suffix TEXT,
+                phone_number TEXT,
+                device TEXT,
+                os TEXT,
+                browser TEXT,
+                ip TEXT,
+                msg_id TEXT
+            )
+        ''')
+
         # Ensure default Administrator and Pracownik accounts exist
         cursor.execute('SELECT COUNT(*) FROM users WHERE username = "admin"')
         if cursor.fetchone()[0] == 0:
@@ -957,6 +985,23 @@ def get_short_url_clicks(link_id):
         except Exception as de:
             print("Device summary fetch exception:", de)
 
+        # 3. Include any real-time webhook clicks from local DB if detailed list is empty
+        if not clicks_list:
+            try:
+                with get_db() as conn:
+                    cursor = conn.cursor()
+                    cursor.execute('SELECT created_at, phone_number, device, os, browser FROM shorturl_clicks_log ORDER BY id DESC LIMIT 50')
+                    for r in cursor.fetchall():
+                        clicks_list.append({
+                            'date_hit': r['created_at'],
+                            'phone_number': r['phone_number'] or 'Wejście bezpośrednie',
+                            'os': r['os'] or 'Nieznany',
+                            'browser': r['browser'] or 'Nieznana',
+                            'device': r['device'] or 'Inne'
+                        })
+            except Exception:
+                pass
+
         return jsonify({'success': True, 'clicks': clicks_list, 'devices': devices})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e), 'clicks': [], 'devices': {}}), 400
@@ -1214,6 +1259,97 @@ def sms_callback():
     except Exception as e:
         print(f"Error handling SMS callback: {e}", file=sys.stderr)
         return f"ERROR: {str(e)}", 400
+
+
+@app.route('/api/callbacks/shorturl', methods=['GET', 'POST'])
+@app.route('/api/callbacks/idzdo', methods=['GET', 'POST'])
+def shorturl_callback():
+    """
+    SMSAPI idz.do / cut.li click callback.
+    Receives real-time click notifications when someone clicks an idz.do link.
+    """
+    try:
+        data = request.form.to_dict() if request.method == 'POST' else request.args.to_dict()
+        if not data and request.is_json:
+            data = request.get_json() or {}
+
+        suffix = data.get('suffix') or ''
+        to_number = data.get('to') or ''
+        device = data.get('device') or ''
+        os_name = data.get('operating_system') or data.get('os') or ''
+        browser = data.get('browser') or ''
+        ip_addr = data.get('ip') or ''
+        msg_id = data.get('MsgId') or data.get('msg_id') or ''
+
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                INSERT INTO shorturl_clicks_log (suffix, phone_number, device, os, browser, ip, msg_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            ''', (suffix, to_number, device, os_name, browser, ip_addr, msg_id))
+            conn.commit()
+
+        return "OK", 200
+    except Exception as e:
+        print(f"Error handling shorturl callback: {e}", file=sys.stderr)
+        return f"ERROR: {str(e)}", 400
+
+
+@app.route('/api/callbacks/inbound', methods=['GET', 'POST'])
+@app.route('/api/callbacks/sms_inbound', methods=['GET', 'POST'])
+def inbound_sms_callback():
+    """
+    SMSAPI Inbound SMS (Odbiór SMS / 2Way) Callback Endpoint.
+    Receives incoming replies from customers.
+    """
+    try:
+        data = request.form.to_dict() if request.method == 'POST' else request.args.to_dict()
+        if not data and request.is_json:
+            data = request.get_json() or {}
+
+        from_num = data.get('sms_from') or data.get('from') or data.get('phone') or 'Nieznany'
+        to_num = data.get('sms_to') or data.get('to') or 'Numer odbiorczy'
+        sms_text = data.get('sms_text') or data.get('message') or data.get('text') or ''
+
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                INSERT INTO inbound_sms (from_number, to_number, message, raw_payload)
+                VALUES (?, ?, ?, ?)
+            ''', (from_num, to_num, sms_text, json.dumps(data)))
+
+            cursor.execute('''
+                INSERT INTO history (type, recipients, sender, message, status, points_cost, created_by)
+                VALUES ('SMS_PRZYCHODZACY', ?, ?, ?, 'ODEBRANO', 0.0, 'SYSTEM_2WAY')
+            ''', (from_num, to_num, sms_text))
+            conn.commit()
+
+        return "OK", 200
+    except Exception as e:
+        print(f"Error handling inbound SMS callback: {e}", file=sys.stderr)
+        return f"ERROR: {str(e)}", 400
+
+
+@app.route('/api/callbacks/mms', methods=['GET', 'POST'])
+def mms_callback():
+    """MMS delivery callback"""
+    return "OK", 200
+
+
+@app.route('/api/callbacks/hlr', methods=['GET', 'POST'])
+def hlr_callback():
+    """HLR lookup callback"""
+    return "OK", 200
+
+
+@app.route('/api/inbox', methods=['GET'])
+def get_inbox():
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute('SELECT * FROM inbound_sms ORDER BY id DESC LIMIT 100')
+        rows = cursor.fetchall()
+        inbox_list = [dict(r) for r in rows]
+    return jsonify({'success': True, 'inbox': inbox_list})
 
 
 @app.route('/api/history', methods=['GET'])
