@@ -757,44 +757,80 @@
 
             <!-- TAB 6: CONTACTS & GROUPS -->
             <section id="tab-contacts" class="tab-content hidden space-y-6">
-                <div class="flex items-center justify-between">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div>
                         <h2 class="text-xl font-bold text-slate-800 dark:text-white">Kontakty i Grupy SMSAPI</h2>
-                        <p class="text-xs text-slate-500 mt-0.5">Zarządzaj swoją książką adresową pobieraną z konta SMSAPI.</p>
+                        <p class="text-xs text-slate-500 mt-0.5">Zarządzaj swoją książką adresową kontrahentów pobieraną z konta SMSAPI.</p>
                     </div>
-                    <div class="flex gap-2">
-                        <button onclick="fetchContacts()" class="px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-xl text-xs font-medium hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-1.5">
+                    <div class="flex items-center gap-2">
+                        <button onclick="fetchContacts(contactsCurrentPage)" class="px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-xl text-xs font-semibold hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-1.5 transition-colors">
                             <i class="fa-solid fa-arrows-rotate"></i> Odśwież listę
                         </button>
-                        <button onclick="openAddContactModal()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow">
+                        <button onclick="openAddContactModal()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md shadow-blue-500/20 transition-all">
                             <i class="fa-solid fa-user-plus"></i> Dodaj kontakt
                         </button>
                     </div>
                 </div>
 
                 <div class="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-4">
-                    <div class="flex items-center justify-between">
-                        <input type="text" id="contactSearchInput" placeholder="Szukaj kontaktu po nazwisku lub numerze..." oninput="debounce(filterContactsTable, 150)()" class="w-72 px-3.5 py-1.5 text-xs rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700 outline-none">
-                        <span id="contactsCountBadge" class="text-xs text-slate-400">0 kontaktów</span>
+                    <!-- Filters and Limit Selection -->
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div class="relative flex-1 max-w-md">
+                            <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-2.5 text-slate-400 text-xs"></i>
+                            <input type="text" id="contactSearchInput" placeholder="Szukaj kontrahenta (nazwisko, numer, email, miasto)..." oninput="debounce(handleContactSearch, 300)()" class="w-full pl-9 pr-8 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700 outline-none focus:ring-2 focus:ring-blue-500">
+                            <button onclick="clearContactSearch()" class="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-xs" title="Wyczyść szukanie">
+                                <i class="fa-solid fa-xmark"></i>
+                            </button>
+                        </div>
+
+                        <div class="flex items-center gap-4">
+                            <!-- Items per page selector: 25, 100, 150, 300 -->
+                            <div class="flex items-center gap-2 bg-slate-50 dark:bg-slate-700/50 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700">
+                                <label for="contactsPerPageSelect" class="text-xs font-semibold text-slate-600 dark:text-slate-300 whitespace-nowrap">
+                                    <i class="fa-solid fa-list-ol mr-1 text-blue-500"></i> Na stronie:
+                                </label>
+                                <select id="contactsPerPageSelect" onchange="changeContactsPerPage(this.value)" class="bg-white dark:bg-slate-800 px-2 py-1 text-xs font-bold text-slate-800 dark:text-slate-100 rounded-lg border border-slate-300 dark:border-slate-600 outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer">
+                                    <option value="25">25</option>
+                                    <option value="100" selected>100</option>
+                                    <option value="150">150</option>
+                                    <option value="300">300</option>
+                                </select>
+                            </div>
+
+                            <span id="contactsCountBadge" class="text-xs font-bold px-3 py-1.5 rounded-xl bg-blue-50 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 border border-blue-200 dark:border-blue-800/40 whitespace-nowrap">
+                                0 kontaktów
+                            </span>
+                        </div>
                     </div>
 
-                    <div class="overflow-x-auto">
+                    <!-- Contacts Table -->
+                    <div class="overflow-x-auto rounded-xl border border-slate-100 dark:border-slate-700">
                         <table class="w-full text-left text-xs">
-                            <thead class="bg-slate-50 dark:bg-slate-700/50 uppercase font-semibold text-slate-500">
+                            <thead class="bg-slate-50 dark:bg-slate-700/60 uppercase font-bold text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700">
                                 <tr>
-                                    <th class="py-2.5 px-3">Imię i Nazwisko</th>
-                                    <th class="py-2.5 px-3">Numer telefonu</th>
-                                    <th class="py-2.5 px-3">E-mail</th>
-                                    <th class="py-2.5 px-3">Miasto</th>
-                                    <th class="py-2.5 px-3 text-right">Akcje</th>
+                                    <th class="py-3 px-3.5">Kontrahent / Nazwisko</th>
+                                    <th class="py-3 px-3.5">Numer telefonu</th>
+                                    <th class="py-3 px-3.5">Adres E-mail</th>
+                                    <th class="py-3 px-3.5">Miasto</th>
+                                    <th class="py-3 px-3.5 text-right">Akcje</th>
                                 </tr>
                             </thead>
-                            <tbody id="contactsTableBody" class="divide-y divide-slate-100 dark:divide-slate-700/50">
+                            <tbody id="contactsTableBody" class="divide-y divide-slate-100 dark:divide-slate-700/50 font-medium">
                                 <tr>
-                                    <td colspan="5" class="py-6 text-center text-slate-400">Kliknij "Odśwież listę", aby załadować kontakty...</td>
+                                    <td colspan="5" class="py-8 text-center text-slate-400">Kliknij "Odśwież listę", aby załadować kontakty...</td>
                                 </tr>
                             </tbody>
                         </table>
+                    </div>
+
+                    <!-- Pagination Footer Bar -->
+                    <div id="contactsPaginationContainer" class="flex flex-col sm:flex-row items-center justify-between gap-4 pt-3 text-xs">
+                        <div id="contactsPaginationInfo" class="text-slate-500 dark:text-slate-400 font-medium">
+                            Ładowanie danych stron...
+                        </div>
+                        <div id="contactsPaginationButtons" class="flex items-center gap-1.5 flex-wrap">
+                            <!-- Dynamic pagination pills -->
+                        </div>
                     </div>
                 </div>
             </section>
@@ -2331,50 +2367,175 @@
             }
         }
 
-        // Contacts Handlers
-        async function fetchContacts() {
+        // Contacts Handlers & Pagination State
+        let contactsCurrentPage = 1;
+        let contactsPerPage = 100;
+        let contactsTotal = 0;
+        let contactsSearchQuery = '';
+
+        async function fetchContacts(page = 1) {
+            contactsCurrentPage = page;
+            const offset = (contactsCurrentPage - 1) * contactsPerPage;
+            const tbody = document.getElementById('contactsTableBody');
+            tbody.innerHTML = `<tr><td colspan="5" class="py-8 text-center text-slate-400"><i class="fa-solid fa-spinner fa-spin mr-2 text-blue-500"></i>Ładowanie kontaktów (strona ${contactsCurrentPage})...</td></tr>`;
+
             try {
-                const tbody = document.getElementById('contactsTableBody');
-                tbody.innerHTML = `<tr><td colspan="5" class="py-6 text-center text-slate-400">Ładowanie kontaktów...</td></tr>`;
-                const res = await fetch('/api/contacts');
+                const queryParam = contactsSearchQuery ? `&q=${encodeURIComponent(contactsSearchQuery)}` : '';
+                const res = await fetch(`/api/contacts?limit=${contactsPerPage}&offset=${offset}${queryParam}`);
                 const data = await res.json();
-                allContacts = data.contacts || [];
-                renderContactsTable(allContacts);
+
+                if (data.success) {
+                    allContacts = data.contacts || [];
+                    contactsTotal = typeof data.total === 'number' ? data.total : allContacts.length;
+                    renderContactsTable(allContacts);
+                    renderContactsPagination();
+                } else {
+                    tbody.innerHTML = `<tr><td colspan="5" class="py-8 text-center text-rose-500 font-medium"><i class="fa-solid fa-triangle-exclamation mr-1.5"></i> ${data.error || 'Błąd pobierania kontaktów'}</td></tr>`;
+                    document.getElementById('contactsCountBadge').textContent = 'Błąd';
+                    document.getElementById('contactsPaginationInfo').textContent = 'Brak danych';
+                    document.getElementById('contactsPaginationButtons').innerHTML = '';
+                }
             } catch (e) {
                 console.error(e);
+                tbody.innerHTML = `<tr><td colspan="5" class="py-8 text-center text-rose-500 font-medium">Błąd połączenia z serwerem.</td></tr>`;
             }
+        }
+
+        function changeContactsPerPage(newVal) {
+            contactsPerPage = parseInt(newVal, 10) || 100;
+            fetchContacts(1);
+        }
+
+        function handleContactSearch() {
+            contactsSearchQuery = document.getElementById('contactSearchInput').value.trim();
+            fetchContacts(1);
+        }
+
+        function clearContactSearch() {
+            document.getElementById('contactSearchInput').value = '';
+            contactsSearchQuery = '';
+            fetchContacts(1);
+        }
+
+        function fillSmsToNumber(phone) {
+            if (!phone) return;
+            document.getElementById('smsTo').value = phone;
+            switchTab('sms-send');
+            updateCounters();
         }
 
         function renderContactsTable(list) {
             const tbody = document.getElementById('contactsTableBody');
-            document.getElementById('contactsCountBadge').textContent = `${list.length} kontaktów`;
+            const startIdx = contactsTotal > 0 ? ((contactsCurrentPage - 1) * contactsPerPage) + 1 : 0;
+            const endIdx = Math.min(contactsCurrentPage * contactsPerPage, contactsTotal);
+            const totalPages = Math.ceil(contactsTotal / contactsPerPage) || 1;
 
-            if (list.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="5" class="py-6 text-center text-slate-400">Brak kontaktów.</td></tr>`;
+            document.getElementById('contactsCountBadge').textContent = `${contactsTotal.toLocaleString()} kontaktów`;
+            document.getElementById('contactsPaginationInfo').innerHTML = contactsTotal > 0 
+                ? `Wyświetlono <b>${startIdx}–${endIdx}</b> z <b>${contactsTotal.toLocaleString()}</b> kontaktów (Strona <b>${contactsCurrentPage}</b> z <b>${totalPages}</b>)`
+                : `Brak kontaktów`;
+
+            if (!list || list.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" class="py-8 text-center text-slate-400">Brak kontaktów do wyświetlenia.</td></tr>`;
                 return;
             }
 
-            tbody.innerHTML = list.map(c => `
-                <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/30">
-                    <td class="py-2.5 px-3 font-medium">${c.first_name || ''} ${c.last_name || ''}</td>
-                    <td class="py-2.5 px-3 font-mono text-blue-600">${c.phone_number}</td>
-                    <td class="py-2.5 px-3 text-slate-500">${c.email || '-'}</td>
-                    <td class="py-2.5 px-3 text-slate-500">${c.city || '-'}</td>
-                    <td class="py-2.5 px-3 text-right">
-                        <button onclick="deleteContact('${c.id}')" class="text-rose-500 hover:text-rose-700"><i class="fa-solid fa-trash"></i></button>
-                    </td>
-                </tr>
-            `).join('');
+            tbody.innerHTML = list.map(c => {
+                const initial = (c.first_name?.[0] || c.last_name?.[0] || 'K').toUpperCase();
+                const fullName = `${c.first_name || ''} ${c.last_name || ''}`.trim();
+                return `
+                    <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors">
+                        <td class="py-2.5 px-3.5 font-medium">
+                            <div class="flex items-center gap-2.5">
+                                <div class="w-7 h-7 rounded-full bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 flex items-center justify-center font-bold text-xs uppercase flex-shrink-0">
+                                    ${initial}
+                                </div>
+                                <div>
+                                    <div class="font-bold text-slate-800 dark:text-slate-100">${fullName || '<span class="text-slate-400 italic font-normal">Brak nazwy</span>'}</div>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="py-2.5 px-3.5">
+                            <button onclick="fillSmsToNumber('${c.phone_number}')" title="Kliknij, aby wysłać SMS" class="font-mono font-bold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1.5">
+                                <i class="fa-solid fa-paper-plane text-[10px]"></i> ${c.phone_number}
+                            </button>
+                        </td>
+                        <td class="py-2.5 px-3.5 text-slate-600 dark:text-slate-300">
+                            ${c.email ? `<a href="mailto:${c.email}" class="hover:underline">${c.email}</a>` : '<span class="text-slate-400">-</span>'}
+                        </td>
+                        <td class="py-2.5 px-3.5 text-slate-600 dark:text-slate-300">
+                            ${c.city || '<span class="text-slate-400">-</span>'}
+                        </td>
+                        <td class="py-2.5 px-3.5 text-right whitespace-nowrap">
+                            <div class="flex items-center justify-end gap-1.5">
+                                <button onclick="fillSmsToNumber('${c.phone_number}')" title="Napisz SMS" class="px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:hover:bg-blue-900/60 dark:text-blue-300 font-semibold text-xs flex items-center gap-1 transition-colors">
+                                    <i class="fa-solid fa-comment-sms"></i> SMS
+                                </button>
+                                <button onclick="deleteContact('${c.id}')" title="Usuń kontakt" class="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/30 transition-colors">
+                                    <i class="fa-solid fa-trash"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
         }
 
-        function filterContactsTable() {
-            const q = document.getElementById('contactSearchInput').value.toLowerCase();
-            const filtered = allContacts.filter(c =>
-                (c.first_name && c.first_name.toLowerCase().includes(q)) ||
-                (c.last_name && c.last_name.toLowerCase().includes(q)) ||
-                (c.phone_number && c.phone_number.includes(q))
-            );
-            renderContactsTable(filtered);
+        function renderContactsPagination() {
+            const totalPages = Math.ceil(contactsTotal / contactsPerPage) || 1;
+            const container = document.getElementById('contactsPaginationButtons');
+            if (!container) return;
+
+            if (totalPages <= 1) {
+                container.innerHTML = '';
+                return;
+            }
+
+            let html = '';
+
+            // First & Prev buttons
+            html += `
+                <button onclick="fetchContacts(1)" ${contactsCurrentPage === 1 ? 'disabled' : ''} class="px-2.5 py-1 rounded-lg border border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed font-medium text-xs transition-colors" title="Pierwsza strona">
+                    <i class="fa-solid fa-angles-left"></i>
+                </button>
+                <button onclick="fetchContacts(${contactsCurrentPage - 1})" ${contactsCurrentPage === 1 ? 'disabled' : ''} class="px-2.5 py-1 rounded-lg border border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed font-medium text-xs transition-colors" title="Poprzednia strona">
+                    <i class="fa-solid fa-chevron-left mr-1"></i>Poprz.
+                </button>
+            `;
+
+            // Page numbers
+            let start = Math.max(1, contactsCurrentPage - 2);
+            let end = Math.min(totalPages, contactsCurrentPage + 2);
+
+            if (start > 1) {
+                html += `<button onclick="fetchContacts(1)" class="px-3 py-1 rounded-lg border border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700 font-medium text-xs">1</button>`;
+                if (start > 2) html += `<span class="px-1 text-slate-400 font-bold">...</span>`;
+            }
+
+            for (let p = start; p <= end; p++) {
+                if (p === contactsCurrentPage) {
+                    html += `<button class="px-3 py-1 rounded-lg bg-blue-600 text-white font-bold text-xs shadow-sm">${p}</button>`;
+                } else {
+                    html += `<button onclick="fetchContacts(${p})" class="px-3 py-1 rounded-lg border border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700 font-medium text-xs transition-colors">${p}</button>`;
+                }
+            }
+
+            if (end < totalPages) {
+                if (end < totalPages - 1) html += `<span class="px-1 text-slate-400 font-bold">...</span>`;
+                html += `<button onclick="fetchContacts(${totalPages})" class="px-3 py-1 rounded-lg border border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700 font-medium text-xs">${totalPages}</button>`;
+            }
+
+            // Next & Last buttons
+            html += `
+                <button onclick="fetchContacts(${contactsCurrentPage + 1})" ${contactsCurrentPage === totalPages ? 'disabled' : ''} class="px-2.5 py-1 rounded-lg border border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed font-medium text-xs transition-colors" title="Następna strona">
+                    Nast.<i class="fa-solid fa-chevron-right ml-1"></i>
+                </button>
+                <button onclick="fetchContacts(${totalPages})" ${contactsCurrentPage === totalPages ? 'disabled' : ''} class="px-2.5 py-1 rounded-lg border border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed font-medium text-xs transition-colors" title="Ostatnia strona">
+                    <i class="fa-solid fa-angles-right"></i>
+                </button>
+            `;
+
+            container.innerHTML = html;
         }
 
         function openAddContactModal() { document.getElementById('addContactModal').classList.remove('hidden'); }

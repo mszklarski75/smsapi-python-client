@@ -910,13 +910,70 @@ def create_short_url():
 # ==========================================================
 @app.route('/api/contacts', methods=['GET'])
 def list_contacts():
+    limit = request.args.get('limit', default=100, type=int)
+    offset = request.args.get('offset', default=0, type=int)
+    search_q = request.args.get('q', default='', type=str).strip()
+
+    if limit <= 0 or limit > 500:
+        limit = 100
+
     try:
         client = get_smsapi_client()
-        contacts = client.contacts.list_contacts()
-        c_list = [{'id': getattr(c, 'id', ''), 'first_name': getattr(c, 'first_name', ''), 'last_name': getattr(c, 'last_name', ''), 'phone_number': getattr(c, 'phone_number', ''), 'email': getattr(c, 'email', ''), 'city': getattr(c, 'city', '')} for c in contacts]
-        return jsonify({'success': True, 'contacts': c_list})
+        params = {'limit': min(100, limit), 'offset': offset}
+        if search_q:
+            params['q'] = search_q
+
+        contacts_res = client.contacts.list_contacts(**params)
+        total_count = getattr(contacts_res, 'size', None)
+
+        c_list = []
+        for c in contacts_res:
+            c_list.append({
+                'id': getattr(c, 'id', ''),
+                'first_name': getattr(c, 'first_name', ''),
+                'last_name': getattr(c, 'last_name', ''),
+                'phone_number': getattr(c, 'phone_number', ''),
+                'email': getattr(c, 'email', ''),
+                'city': getattr(c, 'city', '')
+            })
+
+        # If user requested 150 or 300 and total > current chunk:
+        if limit > 100 and total_count is not None and total_count > offset + len(c_list) and len(c_list) >= 100:
+            current_offset = offset + len(c_list)
+            while len(c_list) < limit and current_offset < total_count:
+                chunk_limit = min(100, limit - len(c_list))
+                chunk_params = {'limit': chunk_limit, 'offset': current_offset}
+                if search_q:
+                    chunk_params['q'] = search_q
+                next_res = client.contacts.list_contacts(**chunk_params)
+                chunk_items = list(next_res)
+                if not chunk_items:
+                    break
+                for c in chunk_items:
+                    c_list.append({
+                        'id': getattr(c, 'id', ''),
+                        'first_name': getattr(c, 'first_name', ''),
+                        'last_name': getattr(c, 'last_name', ''),
+                        'phone_number': getattr(c, 'phone_number', ''),
+                        'email': getattr(c, 'email', ''),
+                        'city': getattr(c, 'city', '')
+                    })
+                current_offset += len(chunk_items)
+                if len(chunk_items) < chunk_limit:
+                    break
+
+        if total_count is None:
+            total_count = offset + len(c_list)
+
+        return jsonify({
+            'success': True,
+            'contacts': c_list,
+            'total': total_count,
+            'limit': limit,
+            'offset': offset
+        })
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e), 'contacts': []}), 400
+        return jsonify({'success': False, 'error': str(e), 'contacts': [], 'total': 0, 'limit': limit, 'offset': offset}), 400
 
 
 @app.route('/api/contacts', methods=['POST'])
