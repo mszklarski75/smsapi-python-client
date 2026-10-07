@@ -1245,6 +1245,7 @@
                 activeNav.classList.add('bg-blue-50', 'text-blue-600', 'dark:bg-blue-900/30', 'dark:text-blue-400');
             }
 
+            if (tabId === 'dashboard') { fetchBalance(); fetchStats(); fetchRecentHistory(); }
             if (tabId === 'templates') renderTemplatesGrid(savedTemplates);
             if (tabId === 'history') fetchHistory();
             if (tabId === 'contacts') fetchContacts();
@@ -1398,10 +1399,10 @@
                 if (adminNav) adminNav.classList.add('hidden');
                 if (adminShutdownBtn) adminShutdownBtn.classList.add('hidden');
                 if (adminClearHistoryBtn) adminClearHistoryBtn.classList.add('hidden');
-
-                // Always ensure non-admin starts on standard SMS tab and cannot stay in settings
-                switchTab('sms-single');
             }
+
+            // Always default to Main Dashboard ('dashboard') on login or role switch
+            switchTab('dashboard');
         }
 
         async function handleLoginSubmit(e) {
@@ -1455,7 +1456,7 @@
             await fetch('/api/auth/logout', { method: 'POST' });
             currentUser = null;
             document.getElementById('loginPassword').value = '';
-            switchTab('sms-single'); // Immediately reset tab to SMS Wysyłka
+            switchTab('dashboard'); // Reset to Main Dashboard upon logout
             document.getElementById('loginScreen').classList.remove('hidden');
             await loadLoginUsernames();
         }
