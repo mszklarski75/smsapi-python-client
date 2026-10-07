@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SMSAPI Studio / Web Dashboard & Desktop Application
+SMSAPI Studio / High-Performance Web Dashboard & Desktop Application
 A complete management console for SMSAPI services with Multi-User & Role-Based Access Control.
+Optimized for multi-user high-speed concurrent execution (WAL mode, connection pooling, thread pool).
 """
 
 import os
@@ -11,6 +12,7 @@ import json
 import sqlite3
 import datetime
 import functools
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Dict, Any, List, Optional
 from flask import Flask, render_template, request, jsonify, send_file, session
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -28,17 +30,23 @@ from smsapi.contacts.exceptions import ContactsException
 
 app = Flask(__name__, template_folder='templates', static_folder='static')
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'smsapi-studio-secret-key-2026-auth')
-app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16 MB max upload
+app.config['MAX_CONTENT_LENGTH'] = 32 * 1024 * 1024  # 32 MB max upload
 
 DB_PATH = os.path.join(CURRENT_DIR, 'smsapi_studio.db')
 
+# Thread pool for concurrent operations (e.g. bulk sending)
+THREAD_POOL = ThreadPoolExecutor(max_workers=8)
+
 
 # ==========================================================
-# Database Initialization & Helpers
+# Database Initialization & High-Performance Helpers (WAL Mode)
 # ==========================================================
 def get_db():
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=20.0)
     conn.row_factory = sqlite3.Row
+    conn.execute('PRAGMA journal_mode = WAL;')
+    conn.execute('PRAGMA synchronous = NORMAL;')
+    conn.execute('PRAGMA cache_size = 10000;')
     return conn
 
 
@@ -80,11 +88,11 @@ def init_db():
                 created_by TEXT DEFAULT 'admin'
             )
         ''')
-        # Check if created_by column exists in history, if not add it
-        try:
-            cursor.execute('ALTER TABLE history ADD COLUMN created_by TEXT DEFAULT "admin"')
-        except Exception:
-            pass
+        # Fast query indexes
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_history_created_at ON history(created_at DESC);')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_history_type ON history(type);')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_history_user ON history(created_by);')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);')
 
         # Templates table
         cursor.execute('''
@@ -181,19 +189,6 @@ def log_history(msg_type: str, recipients: str, sender: str, message: str,
 # ==========================================================
 # Auth Decorators & Helpers
 # ==========================================================
-def get_current_user():
-    return session.get('user')
-
-
-def login_required(f):
-    @functools.wraps(f)
-    def decorated_function(*args, **kwargs):
-        if not session.get('user'):
-            return jsonify({'success': False, 'error': 'Wymagane logowanie.', 'unauthorized': True}), 401
-        return f(*args, **kwargs)
-    return decorated_function
-
-
 def admin_required(f):
     @functools.wraps(f)
     def decorated_function(*args, **kwargs):
@@ -228,8 +223,19 @@ def get_smsapi_client():
 
 
 # ==========================================================
-# API Routes: Authentication (Login / Logout / Current User)
+# API Routes: Authentication (Login / Logout / Current User / Usernames List)
 # ==========================================================
+@app.route('/api/auth/usernames', methods=['GET'])
+def get_public_usernames():
+    """Returns active user accounts list for easy dropdown selection on the login page."""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute('SELECT username, full_name, role FROM users ORDER BY id ASC')
+        rows = cursor.fetchall()
+        users_list = [dict(r) for r in rows]
+    return jsonify({'success': True, 'users': users_list})
+
+
 @app.route('/api/auth/login', methods=['POST'])
 def api_login():
     data = request.json or {}
@@ -237,7 +243,7 @@ def api_login():
     password = data.get('password', '')
 
     if not username or not password:
-        return jsonify({'success': False, 'error': 'Wpisz login i hasło.'}), 400
+        return jsonify({'success': False, 'error': 'Wybierz użytkownika i wpisz hasło.'}), 400
 
     with get_db() as conn:
         cursor = conn.cursor()
@@ -245,7 +251,7 @@ def api_login():
         row = cursor.fetchone()
 
         if not row or not check_password_hash(row['password_hash'], password):
-            return jsonify({'success': False, 'error': 'Nieprawidłowy login lub hasło.'}), 401
+            return jsonify({'success': False, 'error': 'Nieprawidłowe hasło dla wybranego użytkownika.'}), 401
 
         user_data = {
             'id': row['id'],
@@ -651,8 +657,34 @@ def send_sms():
 
 
 # ==========================================================
-# API Routes: Bulk SMS from CSV
+# API Routes: High-Speed Concurrent Bulk SMS from CSV
 # ==========================================================
+def _send_single_item(client, item, from_sender, is_test, normalize):
+    to_num = str(item.get('to', '')).strip()
+    msg_text = str(item.get('message', '')).strip()
+    if not to_num or not msg_text:
+        return {'to': to_num, 'status': 'SKIP', 'points': 0.0}
+
+    params = {'to': to_num, 'message': msg_text}
+    if from_sender:
+        params['from_'] = from_sender
+    if is_test:
+        params['test'] = 1
+    if normalize:
+        params['normalize'] = 1
+
+    try:
+        res = client.sms.send(**params)
+        points = 0.0
+        msg_id = None
+        for r in res:
+            points += float(getattr(r, 'points', 0.0) or 0.0)
+            msg_id = getattr(r, 'id', None)
+        return {'to': to_num, 'status': 'OK', 'id': msg_id, 'points': points}
+    except Exception as e:
+        return {'to': to_num, 'status': 'ERROR', 'error': str(e), 'points': 0.0}
+
+
 @app.route('/api/sms/bulk-send', methods=['POST'])
 def bulk_send_sms():
     data = request.json or {}
@@ -665,41 +697,25 @@ def bulk_send_sms():
         return jsonify({'success': False, 'error': 'Brak danych do wysyłki.'}), 400
 
     client = get_smsapi_client()
+
+    # Run in parallel using thread pool for speed
+    futures = [THREAD_POOL.submit(_send_single_item, client, item, from_sender, is_test, normalize) for item in items]
+    
     total_sent = 0
     total_failed = 0
     total_points = 0.0
     errors = []
     results_summary = []
 
-    for item in items:
-        to_num = str(item.get('to', '')).strip()
-        msg_text = str(item.get('message', '')).strip()
-        if not to_num or not msg_text:
-            continue
-
-        try:
-            params = {'to': to_num, 'message': msg_text}
-            if from_sender:
-                params['from_'] = from_sender
-            if is_test:
-                params['test'] = 1
-            if normalize:
-                params['normalize'] = 1
-
-            res = client.sms.send(**params)
-            points = 0.0
-            msg_id = None
-            for r in res:
-                points += float(getattr(r, 'points', 0.0) or 0.0)
-                msg_id = getattr(r, 'id', None)
-
-            total_points += points
+    for f in as_completed(futures):
+        res = f.result()
+        results_summary.append(res)
+        if res['status'] == 'OK':
             total_sent += 1
-            results_summary.append({'to': to_num, 'status': 'OK', 'id': msg_id, 'points': points})
-        except Exception as e:
+            total_points += res.get('points', 0.0)
+        elif res['status'] == 'ERROR':
             total_failed += 1
-            errors.append(f"{to_num}: {str(e)}")
-            results_summary.append({'to': to_num, 'status': 'ERROR', 'error': str(e)})
+            errors.append(f"{res['to']}: {res.get('error')}")
 
     log_history(
         msg_type='SMS_MASOWY_CSV' + (' (TEST)' if is_test else ''),
@@ -742,11 +758,7 @@ def send_mfa():
 
     try:
         client = get_smsapi_client()
-        params = {
-            'phone_number': phone_number,
-            'content': content,
-            'fast': is_fast
-        }
+        params = {'phone_number': phone_number, 'content': content, 'fast': is_fast}
         if from_sender:
             params['from_'] = from_sender
 
@@ -765,12 +777,7 @@ def send_mfa():
             details=f"Wysłano kod MFA do {phone_number}"
         )
 
-        return jsonify({
-            'success': True,
-            'message': f'Kod 2FA został pomyślnie wysłany na numer {phone_number}.',
-            'id': code_id,
-            'phone_number': phone
-        })
+        return jsonify({'success': True, 'message': f'Kod 2FA wysłany na numer {phone_number}.', 'id': code_id, 'phone_number': phone})
     except Exception as e:
         return jsonify({'success': False, 'error': f'Błąd wysyłki MFA: {str(e)}'}), 400
 
@@ -787,29 +794,11 @@ def verify_mfa():
     try:
         client = get_smsapi_client()
         result = client.mfa.verify_mfa(phone_number=phone_number, code=code)
-        log_history(
-            msg_type='MFA_WERYFIKACJA',
-            recipients=phone_number,
-            sender='SYSTEM',
-            message=f'Weryfikacja kodu OTP: {code}',
-            status='VERIFIED',
-            points_cost=0.0
-        )
-        return jsonify({
-            'success': True,
-            'message': f'Kod OTP dla numeru {phone_number} jest PRAWIDŁOWY! Uwierzytelnienie zakończone sukcesem.',
-            'data': str(result)
-        })
+        log_history(msg_type='MFA_WERYFIKACJA', recipients=phone_number, sender='SYSTEM', message=f'Weryfikacja OTP: {code}', status='VERIFIED', points_cost=0.0)
+        return jsonify({'success': True, 'message': f'Kod OTP dla numeru {phone_number} jest PRAWIDŁOWY!', 'data': str(result)})
     except Exception as e:
-        log_history(
-            msg_type='MFA_WERYFIKACJA',
-            recipients=phone_number,
-            sender='SYSTEM',
-            message=f'Błędny kod OTP: {code}',
-            status='FAILED',
-            error_message=str(e)
-        )
-        return jsonify({'success': False, 'error': f'Nieprawidłowy kod lub błąd weryfikacji: {str(e)}'}), 400
+        log_history(msg_type='MFA_WERYFIKACJA', recipients=phone_number, sender='SYSTEM', message=f'Błędny OTP: {code}', status='FAILED', error_message=str(e))
+        return jsonify({'success': False, 'error': f'Nieprawidłowy kod OTP: {str(e)}'}), 400
 
 
 # ==========================================================
@@ -836,7 +825,7 @@ def send_vms():
 
         result = client.vms.send(to=to_number, tts=tts_text, tts_lector=tts_lector, try_=tries, interval=interval)
         log_history(msg_type='VMS_GLOSOWY', recipients=to_number, sender=f'Lektor: {tts_lector}', message=tts_text, status='SENT')
-        return jsonify({'success': True, 'message': f'Wiadomość głosowa VMS została zakolejkowana dla numeru {to_number}.', 'result': str(result)})
+        return jsonify({'success': True, 'message': f'Wiadomość głosowa VMS została zakolejkowana.', 'result': str(result)})
     except Exception as e:
         return jsonify({'success': False, 'error': f'Błąd wysyłki VMS: {str(e)}'}), 400
 
@@ -858,7 +847,7 @@ def send_mms():
 
         result = client.mms.send(to=to_number, subject=subject or 'MMS', smil=smil_content)
         log_history(msg_type='MMS', recipients=to_number, sender='SMSAPI MMS', message=f"Temat: {subject}", status='SENT')
-        return jsonify({'success': True, 'message': f'Wiadomość MMS została wysłana do {to_number}.', 'result': str(result)})
+        return jsonify({'success': True, 'message': f'Wiadomość MMS została wysłana.', 'result': str(result)})
     except Exception as e:
         return jsonify({'success': False, 'error': f'Błąd wysyłki MMS: {str(e)}'}), 400
 
@@ -871,14 +860,14 @@ def check_hlr():
     data = request.json or {}
     number = data.get('number', '').strip()
     if not number:
-        return jsonify({'success': False, 'error': 'Podaj numer telefonu do sprawdzenia.'}), 400
+        return jsonify({'success': False, 'error': 'Podaj numer telefonu.'}), 400
 
     try:
         client = get_smsapi_client()
         res = client.hlr.check_number(number=number)
         return jsonify({'success': True, 'number': getattr(res, 'number', number), 'status': getattr(res, 'status', 'OK'), 'price': getattr(res, 'price', 0)})
     except Exception as e:
-        return jsonify({'success': False, 'error': f'Błąd zapytania HLR: {str(e)}'}), 400
+        return jsonify({'success': False, 'error': f'Błąd HLR: {str(e)}'}), 400
 
 
 @app.route('/api/shorturl', methods=['GET'])
@@ -982,7 +971,7 @@ def remove_from_blacklist(id):
 
 
 # ==========================================================
-# API Routes: History & Statistics
+# API Routes: Fast Indexed History & Statistics
 # ==========================================================
 @app.route('/api/history', methods=['GET'])
 def get_history():
@@ -1153,4 +1142,4 @@ if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     host = '0.0.0.0'
     print(f"🚀 SMSAPI Studio Dashboard uruchomiony pod adresem: http://localhost:{port}")
-    app.run(host=host, port=port, debug=True)
+    app.run(host=host, port=port, debug=False, threaded=True)

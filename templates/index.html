@@ -47,15 +47,16 @@
                     <i class="fa-solid fa-paper-plane"></i>
                 </div>
                 <h2 class="text-2xl font-black tracking-tight text-slate-800 dark:text-white">SMSAPI Studio</h2>
-                <p class="text-xs text-slate-500 dark:text-slate-400">Zaloguj się do firmowego centrum wysyłki SMS</p>
+                <p class="text-xs text-slate-500 dark:text-slate-400">Wybierz swoje konto i zaloguj się do panelu</p>
             </div>
 
             <form onsubmit="handleLoginSubmit(event)" class="space-y-4">
                 <div>
-                    <label class="block text-xs font-semibold uppercase text-slate-500 mb-1">Login / Nazwa użytkownika</label>
+                    <label class="block text-xs font-semibold uppercase text-slate-500 mb-1">Wybierz użytkownika</label>
                     <div class="relative">
-                        <i class="fa-solid fa-user absolute left-3.5 top-3 text-slate-400 text-xs"></i>
-                        <input type="text" id="loginUsername" required placeholder="np. admin lub pracownik" class="w-full pl-9 pr-3.5 py-2.5 text-sm rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700 outline-none focus:ring-2 focus:ring-blue-500">
+                        <select id="loginUsername" required class="w-full px-3.5 py-2.5 text-sm rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700 outline-none focus:ring-2 focus:ring-blue-500 font-medium">
+                            <option value="">-- Wybierz użytkownika z listy --</option>
+                        </select>
                     </div>
                 </div>
 
@@ -71,12 +72,6 @@
                     <i class="fa-solid fa-right-to-bracket"></i> Zaloguj się
                 </button>
             </form>
-
-            <div class="p-3 rounded-xl bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-700 text-[11px] text-slate-500 space-y-1 text-center">
-                <p class="font-bold text-slate-700 dark:text-slate-300">Domyślne dane dostępowe:</p>
-                <p>👑 <b>Administrator:</b> login: <code class="bg-white dark:bg-slate-800 px-1 py-0.5 rounded">admin</code> | hasło: <code class="bg-white dark:bg-slate-800 px-1 py-0.5 rounded">admin</code></p>
-                <p>👤 <b>Pracownik:</b> login: <code class="bg-white dark:bg-slate-800 px-1 py-0.5 rounded">pracownik</code> | hasło: <code class="bg-white dark:bg-slate-800 px-1 py-0.5 rounded">pracownik123</code></p>
-            </div>
         </div>
     </div>
 
@@ -738,7 +733,7 @@
 
                 <div class="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-4">
                     <div class="flex items-center justify-between">
-                        <input type="text" id="contactSearchInput" placeholder="Szukaj kontaktu po nazwisku lub numerze..." oninput="filterContactsTable()" class="w-72 px-3.5 py-1.5 text-xs rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700 outline-none">
+                        <input type="text" id="contactSearchInput" placeholder="Szukaj kontaktu po nazwisku lub numerze..." oninput="debounce(filterContactsTable, 150)()" class="w-72 px-3.5 py-1.5 text-xs rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700 outline-none">
                         <span id="contactsCountBadge" class="text-xs text-slate-400">0 kontaktów</span>
                     </div>
 
@@ -892,7 +887,7 @@
 
                 <div class="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-4">
                     <div class="flex flex-wrap items-center gap-3">
-                        <input type="text" id="historySearch" placeholder="Szukaj po odbiorcy, treści lub użytkowniku..." oninput="fetchHistory()" class="flex-1 min-w-[200px] px-3.5 py-1.5 text-xs rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700 outline-none">
+                        <input type="text" id="historySearch" placeholder="Szukaj po odbiorcy, treści lub użytkowniku..." oninput="debounce(fetchHistory, 150)()" class="flex-1 min-w-[200px] px-3.5 py-1.5 text-xs rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700 outline-none">
                         <select id="historyTypeFilter" onchange="fetchHistory()" class="px-3.5 py-1.5 text-xs rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700 outline-none">
                             <option value="">Wszystkie typy</option>
                             <option value="SMS">SMS standardowy</option>
@@ -1173,6 +1168,15 @@
         let sendersList = [];
         let systemUsers = [];
 
+        // Debounce helper for smooth UI search & filtering
+        function debounce(func, wait) {
+            let timeout;
+            return function(...args) {
+                clearTimeout(timeout);
+                timeout = setTimeout(() => func.apply(this, args), wait);
+            };
+        }
+
         const plMap = {
             'ą':'a', 'ć':'c', 'ę':'e', 'ł':'l', 'ń':'n', 'ó':'o', 'ś':'s', 'ź':'z', 'ż':'z',
             'Ą':'A', 'Ć':'C', 'Ę':'E', 'Ł':'L', 'Ń':'N', 'Ó':'O', 'Ś':'S', 'Ź':'Z', 'Ż':'Z'
@@ -1181,7 +1185,6 @@
 
         // Tab Switching
         function switchTab(tabId) {
-            // Guard: non-admins cannot open settings
             if (tabId === 'settings' && currentUser?.role !== 'admin') {
                 Swal.fire({ icon: 'error', title: 'Brak uprawnień', text: 'Tylko Administrator ma dostęp do ustawień.' });
                 return;
@@ -1228,10 +1231,29 @@
             document.getElementById('themeIcon')?.classList.replace('fa-moon', 'fa-sun');
         }
 
-        // App Initialization & Session check
+        // App Initialization
         window.addEventListener('DOMContentLoaded', async () => {
+            await loadLoginUsernames();
             await checkAuth();
         });
+
+        async function loadLoginUsernames() {
+            try {
+                const res = await fetch('/api/auth/usernames');
+                const data = await res.json();
+                const select = document.getElementById('loginUsername');
+                if (data.users && data.users.length > 0) {
+                    select.innerHTML = `<option value="">-- Wybierz swoje konto --</option>` +
+                        data.users.map(u => `
+                            <option value="${u.username}">
+                                ${u.role === 'admin' ? '👑' : '👤'} ${u.full_name} (${u.username})
+                            </option>
+                        `).join('');
+                }
+            } catch (err) {
+                console.error("Failed to load usernames for login:", err);
+            }
+        }
 
         async function checkAuth() {
             try {
@@ -1282,6 +1304,11 @@
             const password = document.getElementById('loginPassword').value;
             const btn = document.getElementById('btnLoginSubmit');
 
+            if (!username) {
+                Swal.fire({ icon: 'warning', title: 'Wybierz użytkownika', text: 'Wybierz swoje konto z listy rozwijanej.' });
+                return;
+            }
+
             btn.disabled = true;
             btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Logowanie...`;
 
@@ -1297,7 +1324,7 @@
                     document.getElementById('loginScreen').classList.add('hidden');
                     applyUserPermissions();
                     await loadAppData();
-                    Swal.fire({ icon: 'success', title: 'Zalogowano!', text: `Witaj, ${currentUser.full_name}!`, timer: 1500, showConfirmButton: false });
+                    Swal.fire({ icon: 'success', title: 'Zalogowano!', text: `Witaj, ${currentUser.full_name}!`, timer: 1200, showConfirmButton: false });
                 } else {
                     Swal.fire({ icon: 'error', title: 'Błąd logowania', text: data.error });
                 }
@@ -1321,16 +1348,20 @@
 
             await fetch('/api/auth/logout', { method: 'POST' });
             currentUser = null;
+            document.getElementById('loginPassword').value = '';
+            await loadLoginUsernames();
             document.getElementById('loginScreen').classList.remove('hidden');
         }
 
         async function loadAppData() {
-            await fetchConfig();
-            await fetchBalance();
-            await fetchStats();
-            await fetchRecentHistory();
-            await fetchSenders();
-            await fetchTemplates();
+            await Promise.allSettled([
+                fetchConfig(),
+                fetchBalance(),
+                fetchStats(),
+                fetchRecentHistory(),
+                fetchSenders(),
+                fetchTemplates()
+            ]);
         }
 
         // Users Management (Admin Only)
@@ -1417,9 +1448,10 @@
                 });
                 const data = await res.json();
                 if (data.success) {
-                    Swal.fire({ icon: 'success', title: 'Zapisano!', text: data.message });
+                    Swal.fire({ icon: 'success', title: 'Zapisano!', text: data.message, timer: 1200, showConfirmButton: false });
                     closeUserModal();
-                    fetchUsers();
+                    await fetchUsers();
+                    await loadLoginUsernames();
                 } else {
                     Swal.fire({ icon: 'error', title: 'Błąd', text: data.error });
                 }
@@ -1442,8 +1474,9 @@
                 const res = await fetch(`/api/users/${id}`, { method: 'DELETE' });
                 const data = await res.json();
                 if (data.success) {
-                    Swal.fire({ icon: 'success', title: 'Usunięto', text: data.message });
-                    fetchUsers();
+                    Swal.fire({ icon: 'success', title: 'Usunięto', text: data.message, timer: 1200, showConfirmButton: false });
+                    await fetchUsers();
+                    await loadLoginUsernames();
                 } else {
                     Swal.fire({ icon: 'error', title: 'Błąd', text: data.error });
                 }
@@ -1511,13 +1544,13 @@
                     document.getElementById('pointsBalance').textContent = pts;
                     document.getElementById('statBalance').textContent = pts;
                     if (showToast) {
-                        Swal.fire({ icon: 'success', title: 'Zaktualizowano saldo', text: `Dostępne środki: ${pts}`, timer: 1500, showConfirmButton: false });
+                        Swal.fire({ icon: 'success', title: 'Zaktualizowano saldo', text: `Dostępne środki: ${pts}`, timer: 1200, showConfirmButton: false });
                     }
                 } else {
                     document.getElementById('pointsBalance').textContent = '-- pkt';
                 }
             } catch (e) {
-                console.warn(e);
+                console.warn("Balance check:", e);
             }
         }
 
@@ -1632,7 +1665,7 @@
                 });
                 const data = await res.json();
                 if (data.success) {
-                    Swal.fire({ icon: 'success', title: 'Sukces', text: data.message, timer: 1500, showConfirmButton: false });
+                    Swal.fire({ icon: 'success', title: 'Sukces', text: data.message, timer: 1200, showConfirmButton: false });
                     fetchSenders();
                 }
             } catch (e) {
@@ -1654,7 +1687,7 @@
                 const res = await fetch(`/api/senders/${name}`, { method: 'DELETE' });
                 const data = await res.json();
                 if (data.success) {
-                    Swal.fire({ icon: 'success', title: 'Usunięto', text: data.message, timer: 1500, showConfirmButton: false });
+                    Swal.fire({ icon: 'success', title: 'Usunięto', text: data.message, timer: 1200, showConfirmButton: false });
                     fetchSenders();
                 } else {
                     Swal.fire({ icon: 'error', title: 'Błąd', text: data.error });
@@ -1773,7 +1806,7 @@
                 });
                 const data = await res.json();
                 if (data.success) {
-                    Swal.fire({ icon: 'success', title: id ? 'Zaktualizowano szablon!' : 'Dodano szablon!', text: data.message, timer: 1500, showConfirmButton: false });
+                    Swal.fire({ icon: 'success', title: id ? 'Zaktualizowano!' : 'Dodano szablon!', text: data.message, timer: 1200, showConfirmButton: false });
                     closeTemplateModal();
                     await fetchTemplates();
                 } else {
@@ -1791,7 +1824,7 @@
                 const res = await fetch(`/api/templates/${id}`, { method: 'DELETE' });
                 const data = await res.json();
                 if (data.success) {
-                    Swal.fire({ icon: 'success', title: 'Usunięto', text: data.message, timer: 1500, showConfirmButton: false });
+                    Swal.fire({ icon: 'success', title: 'Usunięto', text: data.message, timer: 1200, showConfirmButton: false });
                     await fetchTemplates();
                 }
             } catch (e) {
@@ -2159,7 +2192,7 @@
                     Swal.fire({ icon: 'success', title: 'Połączenie VMS zlecone', text: data.message });
                     fetchBalance();
                 } else {
-                    Swal.fire({ icon: 'error', title: 'Błąd', text: data.error });
+                    Swal.fire({ icon: 'error', title: 'Błąd VMS', text: data.error });
                 }
             } catch (err) {
                 Swal.fire({ icon: 'error', title: 'Błąd', text: err.message });
@@ -2183,7 +2216,7 @@
                     Swal.fire({ icon: 'success', title: 'Wysłano MMS', text: data.message });
                     fetchBalance();
                 } else {
-                    Swal.fire({ icon: 'error', title: 'Błąd', text: data.error });
+                    Swal.fire({ icon: 'error', title: 'Błąd MMS', text: data.error });
                 }
             } catch (err) {
                 Swal.fire({ icon: 'error', title: 'Błąd', text: err.message });
@@ -2461,7 +2494,7 @@
                 });
                 const data = await res.json();
                 if (data.success) {
-                    Swal.fire({ icon: 'success', title: 'Zapisano!', text: data.message, timer: 1500, showConfirmButton: false });
+                    Swal.fire({ icon: 'success', title: 'Zapisano!', text: data.message, timer: 1200, showConfirmButton: false });
                     fetchConfig();
                     fetchBalance();
                     fetchSenders();
