@@ -2450,9 +2450,25 @@
 
         function fillSmsToNumber(phone) {
             if (!phone) return;
-            document.getElementById('smsTo').value = phone;
+            const input = document.getElementById('smsRecipients');
+            if (input) {
+                input.value = String(phone).trim();
+                updateRecipientCount();
+            }
             switchTab('sms-send');
-            updateCounters();
+            const msgInput = document.getElementById('smsMessageText');
+            if (msgInput) {
+                setTimeout(() => {
+                    msgInput.focus();
+                }, 100);
+            }
+            Swal.fire({
+                icon: 'info',
+                title: 'Wybrano kontakt do wysyłki',
+                text: `Ustawiono odbiorcę: ${phone}`,
+                timer: 1100,
+                showConfirmButton: false
+            });
         }
 
         function renderContactsTable(list) {
