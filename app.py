@@ -118,13 +118,16 @@ def init_db():
             )
         ''')
 
-        # Insert default Administrator if no users exist
-        cursor.execute('SELECT COUNT(*) FROM users')
+        # Ensure default Administrator and Pracownik accounts exist
+        cursor.execute('SELECT COUNT(*) FROM users WHERE username = "admin"')
         if cursor.fetchone()[0] == 0:
             admin_pwd = generate_password_hash('admin')
-            user_pwd = generate_password_hash('pracownik123')
             cursor.execute('INSERT INTO users (username, password_hash, full_name, role) VALUES (?, ?, ?, ?)',
                            ('admin', admin_pwd, 'Administrator', 'admin'))
+
+        cursor.execute('SELECT COUNT(*) FROM users WHERE username = "pracownik"')
+        if cursor.fetchone()[0] == 0:
+            user_pwd = generate_password_hash('pracownik123')
             cursor.execute('INSERT INTO users (username, password_hash, full_name, role) VALUES (?, ?, ?, ?)',
                            ('pracownik', user_pwd, 'Dział Obsługi Klienta', 'user'))
 
@@ -233,6 +236,11 @@ def get_public_usernames():
         cursor.execute('SELECT username, full_name, role FROM users ORDER BY id ASC')
         rows = cursor.fetchall()
         users_list = [dict(r) for r in rows]
+    if not users_list:
+        users_list = [
+            {'username': 'admin', 'full_name': 'Administrator', 'role': 'admin'},
+            {'username': 'pracownik', 'full_name': 'Dział Obsługi Klienta', 'role': 'user'}
+        ]
     return jsonify({'success': True, 'users': users_list})
 
 

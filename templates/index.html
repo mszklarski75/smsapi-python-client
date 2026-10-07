@@ -51,11 +51,29 @@
             </div>
 
             <form onsubmit="handleLoginSubmit(event)" class="space-y-4">
+                <!-- Szybki wybór profilu za pomocą przycisków -->
                 <div>
-                    <label class="block text-xs font-semibold uppercase text-slate-500 mb-1">Wybierz użytkownika</label>
+                    <label class="block text-xs font-semibold uppercase text-slate-500 mb-1.5">Wybierz profil użytkownika</label>
+                    <div id="quickUserPills" class="grid grid-cols-2 gap-2.5 mb-2.5">
+                        <button type="button" onclick="selectQuickUser('admin')" id="pill-admin" class="quick-user-pill border-2 border-blue-500 bg-blue-50/80 dark:bg-blue-900/30 p-2.5 rounded-xl text-left transition-all cursor-pointer">
+                            <div class="text-xs font-bold text-blue-700 dark:text-blue-300 flex items-center gap-1.5">
+                                <span>👑</span> Administrator
+                            </div>
+                            <div class="text-[10px] text-slate-500 dark:text-slate-400 font-mono mt-0.5">login: admin</div>
+                        </button>
+                        <button type="button" onclick="selectQuickUser('pracownik')" id="pill-pracownik" class="quick-user-pill border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-700/50 p-2.5 rounded-xl text-left transition-all cursor-pointer">
+                            <div class="text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1.5">
+                                <span>👤</span> Dział Obsługi
+                            </div>
+                            <div class="text-[10px] text-slate-500 dark:text-slate-400 font-mono mt-0.5">login: pracownik</div>
+                        </button>
+                    </div>
+
+                    <!-- Lista rozwijana z wszystkimi kontami -->
                     <div class="relative">
-                        <select id="loginUsername" required class="w-full px-3.5 py-2.5 text-sm rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700 outline-none focus:ring-2 focus:ring-blue-500 font-medium">
-                            <option value="">-- Wybierz użytkownika z listy --</option>
+                        <select id="loginUsername" onchange="onSelectUserChange()" required class="w-full px-3.5 py-2.5 text-sm rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700 outline-none focus:ring-2 focus:ring-blue-500 font-medium">
+                            <option value="admin" selected>👑 Administrator (admin)</option>
+                            <option value="pracownik">👤 Dział Obsługi Klienta (pracownik)</option>
                         </select>
                     </div>
                 </div>
@@ -64,7 +82,10 @@
                     <label class="block text-xs font-semibold uppercase text-slate-500 mb-1">Hasło</label>
                     <div class="relative">
                         <i class="fa-solid fa-lock absolute left-3.5 top-3 text-slate-400 text-xs"></i>
-                        <input type="password" id="loginPassword" required placeholder="Wpisz hasło..." class="w-full pl-9 pr-3.5 py-2.5 text-sm rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700 outline-none focus:ring-2 focus:ring-blue-500">
+                        <input type="password" id="loginPassword" required placeholder="Wpisz hasło..." class="w-full pl-9 pr-10 py-2.5 text-sm rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700 outline-none focus:ring-2 focus:ring-blue-500">
+                        <button type="button" onclick="togglePasswordVisibility()" class="absolute right-3 top-3 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200" title="Pokaż/Ukryj hasło">
+                            <i id="eyeIcon" class="fa-solid fa-eye text-xs"></i>
+                        </button>
                     </div>
                 </div>
 
@@ -1237,21 +1258,85 @@
             await checkAuth();
         });
 
+        let cachedUsersList = [];
+
         async function loadLoginUsernames() {
             try {
                 const res = await fetch('/api/auth/usernames');
                 const data = await res.json();
-                const select = document.getElementById('loginUsername');
-                if (data.users && data.users.length > 0) {
-                    select.innerHTML = `<option value="">-- Wybierz swoje konto --</option>` +
-                        data.users.map(u => `
-                            <option value="${u.username}">
-                                ${u.role === 'admin' ? '👑' : '👤'} ${u.full_name} (${u.username})
-                            </option>
-                        `).join('');
+                if (data && data.users && data.users.length > 0) {
+                    cachedUsersList = data.users;
+                    const select = document.getElementById('loginUsername');
+                    const curVal = select.value || 'admin';
+                    select.innerHTML = data.users.map(u => `
+                        <option value="${u.username}" ${u.username === curVal ? 'selected' : ''}>
+                            ${u.role === 'admin' ? '👑' : '👤'} ${u.full_name} (${u.username})
+                        </option>
+                    `).join('');
+                    renderQuickUserPills(data.users);
                 }
             } catch (err) {
-                console.error("Failed to load usernames for login:", err);
+                console.warn("Could not load dynamic usernames, keeping default options:", err);
+            }
+        }
+
+        function renderQuickUserPills(users) {
+            const container = document.getElementById('quickUserPills');
+            if (!container) return;
+            const selectVal = document.getElementById('loginUsername').value;
+            // Render first 2-4 users as quick clickable cards
+            const quickUsers = users.slice(0, 4);
+            container.className = quickUsers.length > 2 ? 'grid grid-cols-2 gap-2 mb-2.5' : 'grid grid-cols-2 gap-2.5 mb-2.5';
+            container.innerHTML = quickUsers.map(u => {
+                const isSelected = u.username === selectVal;
+                const activeClasses = isSelected 
+                    ? 'border-2 border-blue-500 bg-blue-50/90 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 shadow-sm'
+                    : 'border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-700/40 text-slate-700 dark:text-slate-300 opacity-80 hover:opacity-100';
+                return `
+                    <button type="button" onclick="selectQuickUser('${u.username}')" id="pill-${u.username}" class="quick-user-pill ${activeClasses} p-2 rounded-xl text-left transition-all cursor-pointer">
+                        <div class="text-xs font-bold flex items-center gap-1.5 truncate">
+                            <span>${u.role === 'admin' ? '👑' : '👤'}</span>
+                            <span class="truncate">${u.full_name}</span>
+                        </div>
+                        <div class="text-[10px] text-slate-500 dark:text-slate-400 font-mono mt-0.5">login: ${u.username}</div>
+                    </button>
+                `;
+            }).join('');
+        }
+
+        function selectQuickUser(username) {
+            const select = document.getElementById('loginUsername');
+            if (select) {
+                select.value = username;
+                onSelectUserChange();
+            }
+            const pwdInput = document.getElementById('loginPassword');
+            if (pwdInput) {
+                pwdInput.focus();
+            }
+        }
+
+        function onSelectUserChange() {
+            const selectVal = document.getElementById('loginUsername').value;
+            document.querySelectorAll('.quick-user-pill').forEach(pill => {
+                const id = pill.id.replace('pill-', '');
+                if (id === selectVal) {
+                    pill.className = 'quick-user-pill border-2 border-blue-500 bg-blue-50/90 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 p-2 rounded-xl text-left transition-all cursor-pointer shadow-sm';
+                } else {
+                    pill.className = 'quick-user-pill border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-700/40 text-slate-700 dark:text-slate-300 opacity-80 hover:opacity-100 p-2 rounded-xl text-left transition-all cursor-pointer';
+                }
+            });
+        }
+
+        function togglePasswordVisibility() {
+            const pwd = document.getElementById('loginPassword');
+            const icon = document.getElementById('eyeIcon');
+            if (pwd.type === 'password') {
+                pwd.type = 'text';
+                icon.classList.replace('fa-eye', 'fa-eye-slash');
+            } else {
+                pwd.type = 'password';
+                icon.classList.replace('fa-eye-slash', 'fa-eye');
             }
         }
 
