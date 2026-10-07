@@ -1,85 +1,40 @@
 @echo off
 title SMSAPI Studio
 chcp 65001 > nul
-cls
+cd /d "%~dp0"
 
 echo ================================================================
-echo    SMSAPI Studio - Uruchamianie...
+echo    SMSAPI Studio - Uruchamianie serwera...
 echo ================================================================
 echo.
 
-:: 1. Bezposrednia proba uruchomienia przez oficjalny launcher py (zawsze obecny w C:\Windows\py.exe)
-if exist "C:\Windows\py.exe" (
-    echo [OK] Znaleziono Python Launcher (py.exe)
-    set "PY_CMD=C:\Windows\py.exe"
-    goto :RUN
+:: 1. Jesli jest lokalny folder python (wersja Portable na Windows Server)
+if exist "python\python.exe" (
+    echo [OK] Uruchamianie z lokalnego folderu Python...
+    python\python.exe desktop_launcher.py
+    goto :END
 )
 
-:: 2. Sprawdz py w sciezce
-py --version >nul 2>&1
-if %errorlevel% equ 0 (
-    echo [OK] Znaleziono polecenie py
-    set "PY_CMD=py"
-    goto :RUN
-)
-
-:: 3. Sprawdz python w sciezce
+:: 2. Jesli jest zainstalowany python w systemie
 python --version >nul 2>&1
 if %errorlevel% equ 0 (
-    echo [OK] Znaleziono polecenie python
-    set "PY_CMD=python"
-    goto :RUN
+    echo [OK] Uruchamianie przez systemowy Python...
+    python desktop_launcher.py
+    goto :END
 )
 
-:: 4. Sprawdz standardowe foldery instalacyjne Python
-for /d %%D in ("%LOCALAPPDATA%\Programs\Python\Python*") do (
-    if exist "%%D\python.exe" (
-        echo [OK] Znaleziono Python w %%D
-        set "PY_CMD=%%D\python.exe"
-        goto :RUN
-    )
-)
-
-for /d %%D in ("C:\Program Files\Python*") do (
-    if exist "%%D\python.exe" (
-        echo [OK] Znaleziono Python w %%D
-        set "PY_CMD=%%D\python.exe"
-        goto :RUN
-    )
-)
-
-for /d %%D in ("C:\Python*") do (
-    if exist "%%D\python.exe" (
-        echo [OK] Znaleziono Python w %%D
-        set "PY_CMD=%%D\python.exe"
-        goto :RUN
-    )
-)
-
-echo [INFO] Proba uruchomienia bezposredniego...
-start "" launcher.pyw 2>nul
+:: 3. Jesli jest launcher py
+py --version >nul 2>&1
 if %errorlevel% equ 0 (
-    echo [OK] Uruchomiono aplikacje!
-    exit
+    echo [OK] Uruchamianie przez py launcher...
+    py desktop_launcher.py
+    goto :END
 )
 
-echo.
-echo [UWAGA] Windows nie odswiezyl jeszcze sciezki po instalacji Pythona.
-echo.
-echo Szybkie rozwiazanie (wybierz jedno):
-echo 1. Kliknij dwukrotnie w plik 'launcher.pyw' w tym folderze.
-echo 2. Lub zrestartuj komputer / zamknij i otworz ten folder ponownie.
-echo.
+echo ================================================================
+echo [BLAD] Nie znaleziono Pythona!
+echo Upewnij sie, ze folder 'python' znajduje sie w tym samym katalogu.
+echo ================================================================
 pause
-exit /b 1
 
-:RUN
-echo [1/2] Sprawdzanie bibliotek...
-"%PY_CMD%" -m pip install -r requirements_app.txt --quiet --disable-pip-version-check 2>nul
-
-echo [2/2] Otwieranie aplikacji w przegladarce...
-start "" "%PY_CMD%" desktop_launcher.py
-
-:: Krotkie odczekanie i zamkniecie okna
-timeout /t 2 >nul
-exit
+:END
