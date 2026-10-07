@@ -29,18 +29,38 @@
     <!-- SweetAlert2 for notifications -->
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-        body { font-family: 'Inter', sans-serif; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
         .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
         .dark .custom-scrollbar::-webkit-scrollbar-thumb { background: #475569; }
+
+        .quick-user-pill {
+            padding: 0.625rem;
+            border-radius: 0.75rem;
+            text-align: left;
+            cursor: pointer;
+            transition: background-color 0.1s, border-color 0.1s;
+            border: 1px solid #e2e8f0;
+            background: #f8fafc;
+        }
+        .dark .quick-user-pill {
+            border-color: #334155;
+            background: rgba(30, 41, 59, 0.6);
+        }
+        .quick-user-pill.active {
+            border: 2px solid #3b82f6 !important;
+            background: #eff6ff !important;
+        }
+        .dark .quick-user-pill.active {
+            background: rgba(30, 58, 138, 0.45) !important;
+        }
     </style>
 </head>
 <body class="h-full flex flex-col text-slate-800 dark:text-slate-100 antialiased overflow-hidden">
 
-    <!-- LOGIN OVERLAY SCREEN (Shown if not logged in) -->
-    <div id="loginScreen" class="fixed inset-0 bg-slate-900/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
+    <!-- LOGIN OVERLAY SCREEN (Shown if not logged in - optimized without heavy backdrop blur) -->
+    <div id="loginScreen" class="fixed inset-0 bg-slate-950/85 z-50 flex items-center justify-center p-4">
         <div class="bg-white dark:bg-slate-800 rounded-3xl max-w-md w-full p-8 shadow-2xl border border-slate-200 dark:border-slate-700 space-y-6">
             <div class="text-center space-y-2">
                 <div class="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white text-2xl shadow-lg shadow-blue-500/25">
@@ -55,13 +75,13 @@
                 <div>
                     <label class="block text-xs font-semibold uppercase text-slate-500 mb-1.5">Wybierz profil użytkownika</label>
                     <div id="quickUserPills" class="grid grid-cols-2 gap-2.5 mb-2.5">
-                        <button type="button" onclick="selectQuickUser('admin')" id="pill-admin" class="quick-user-pill border-2 border-blue-500 bg-blue-50/80 dark:bg-blue-900/30 p-2.5 rounded-xl text-left transition-all cursor-pointer">
+                        <button type="button" onclick="selectQuickUser('admin')" id="pill-admin" class="quick-user-pill active">
                             <div class="text-xs font-bold text-blue-700 dark:text-blue-300 flex items-center gap-1.5">
                                 <span>👑</span> Administrator
                             </div>
                             <div class="text-[10px] text-slate-500 dark:text-slate-400 font-mono mt-0.5">login: admin</div>
                         </button>
-                        <button type="button" onclick="selectQuickUser('pracownik')" id="pill-pracownik" class="quick-user-pill border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-700/50 p-2.5 rounded-xl text-left transition-all cursor-pointer">
+                        <button type="button" onclick="selectQuickUser('pracownik')" id="pill-pracownik" class="quick-user-pill">
                             <div class="text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1.5">
                                 <span>👤</span> Dział Obsługi
                             </div>
@@ -1253,9 +1273,11 @@
         }
 
         // App Initialization
-        window.addEventListener('DOMContentLoaded', async () => {
-            await loadLoginUsernames();
-            await checkAuth();
+        window.addEventListener('DOMContentLoaded', () => {
+            Promise.allSettled([
+                checkAuth(),
+                loadLoginUsernames()
+            ]);
         });
 
         let cachedUsersList = [];
@@ -1284,17 +1306,13 @@
             const container = document.getElementById('quickUserPills');
             if (!container) return;
             const selectVal = document.getElementById('loginUsername').value;
-            // Render first 2-4 users as quick clickable cards
             const quickUsers = users.slice(0, 4);
             container.className = quickUsers.length > 2 ? 'grid grid-cols-2 gap-2 mb-2.5' : 'grid grid-cols-2 gap-2.5 mb-2.5';
             container.innerHTML = quickUsers.map(u => {
                 const isSelected = u.username === selectVal;
-                const activeClasses = isSelected 
-                    ? 'border-2 border-blue-500 bg-blue-50/90 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 shadow-sm'
-                    : 'border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-700/40 text-slate-700 dark:text-slate-300 opacity-80 hover:opacity-100';
                 return `
-                    <button type="button" onclick="selectQuickUser('${u.username}')" id="pill-${u.username}" class="quick-user-pill ${activeClasses} p-2 rounded-xl text-left transition-all cursor-pointer">
-                        <div class="text-xs font-bold flex items-center gap-1.5 truncate">
+                    <button type="button" onclick="selectQuickUser('${u.username}')" id="pill-${u.username}" class="quick-user-pill ${isSelected ? 'active' : ''}">
+                        <div class="text-xs font-bold flex items-center gap-1.5 truncate ${isSelected ? 'text-blue-700 dark:text-blue-300' : 'text-slate-700 dark:text-slate-200'}">
                             <span>${u.role === 'admin' ? '👑' : '👤'}</span>
                             <span class="truncate">${u.full_name}</span>
                         </div>
@@ -1321,9 +1339,9 @@
             document.querySelectorAll('.quick-user-pill').forEach(pill => {
                 const id = pill.id.replace('pill-', '');
                 if (id === selectVal) {
-                    pill.className = 'quick-user-pill border-2 border-blue-500 bg-blue-50/90 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 p-2 rounded-xl text-left transition-all cursor-pointer shadow-sm';
+                    pill.classList.add('active');
                 } else {
-                    pill.className = 'quick-user-pill border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-700/40 text-slate-700 dark:text-slate-300 opacity-80 hover:opacity-100 p-2 rounded-xl text-left transition-all cursor-pointer';
+                    pill.classList.remove('active');
                 }
             });
         }
@@ -1380,6 +1398,9 @@
                 if (adminNav) adminNav.classList.add('hidden');
                 if (adminShutdownBtn) adminShutdownBtn.classList.add('hidden');
                 if (adminClearHistoryBtn) adminClearHistoryBtn.classList.add('hidden');
+
+                // Always ensure non-admin starts on standard SMS tab and cannot stay in settings
+                switchTab('sms-single');
             }
         }
 
@@ -1434,8 +1455,9 @@
             await fetch('/api/auth/logout', { method: 'POST' });
             currentUser = null;
             document.getElementById('loginPassword').value = '';
-            await loadLoginUsernames();
+            switchTab('sms-single'); // Immediately reset tab to SMS Wysyłka
             document.getElementById('loginScreen').classList.remove('hidden');
+            await loadLoginUsernames();
         }
 
         async function loadAppData() {
