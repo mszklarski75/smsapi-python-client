@@ -994,7 +994,7 @@
                 <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                     <div>
                         <h2 class="text-xl font-bold text-slate-800 dark:text-white">Historia i Raporty Wysyłek</h2>
-                        <p class="text-xs text-slate-500 mt-0.5">Dziennik zleceń wysyłki wraz z informacją, który pracownik zlecił wysyłkę.</p>
+                        <p class="text-xs text-slate-500 mt-0.5">Dziennik zleceń wysyłki wraz ze statusem doręczeń DLR i informacją o użytkowniku.</p>
                     </div>
                     <div class="flex flex-wrap items-center gap-2">
                         <a href="/api/history/export" class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow transition-colors">
@@ -1004,6 +1004,24 @@
                             <i class="fa-solid fa-trash"></i> Wyczyść historię
                         </button>
                     </div>
+                </div>
+
+                <!-- Explanation Banner on Statuses & DLR -->
+                <div class="p-4 rounded-2xl bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200/80 dark:border-blue-900/50 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                    <div class="flex items-start gap-3">
+                        <div class="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0 mt-0.5">
+                            <i class="fa-solid fa-circle-info text-sm"></i>
+                        </div>
+                        <div class="text-xs">
+                            <span class="font-bold text-slate-800 dark:text-slate-100 block mb-0.5">Cykl życia statusów wiadomości SMS i audyt DLR:</span>
+                            <span class="text-slate-600 dark:text-slate-300 leading-relaxed block">
+                                Status <b>WYSLANA (SUCCESS)</b> oznacza natychmiastowe przyjęcie zlecenia przez bramkę SMSAPI i pobranie punktów. Statusy doręczeń na fizyczny telefon (<b>DORĘCZONA / DELIVERED</b>, <b>NIEDORĘCZONA</b>, <b>WYGASŁA</b>) spływają automatycznie z sieci GSM poprzez <b>Adres Callback DLR</b>.
+                            </span>
+                        </div>
+                    </div>
+                    <button onclick="showCallbackSetupModal()" class="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs whitespace-nowrap shadow transition-colors flex items-center gap-1.5">
+                        <i class="fa-solid fa-webhook"></i> Konfiguracja Callback DLR
+                    </button>
                 </div>
 
                 <div class="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-4">
@@ -1033,7 +1051,7 @@
                                     <th class="py-2.5 px-3">Nadawca</th>
                                     <th class="py-2.5 px-3">Odbiorcy</th>
                                     <th class="py-2.5 px-3">Treść wiadomości</th>
-                                    <th class="py-2.5 px-3">Status</th>
+                                    <th class="py-2.5 px-3">Status Doręczenia</th>
                                     <th class="py-2.5 px-3 text-right">Koszt</th>
                                 </tr>
                             </thead>
@@ -1122,6 +1140,35 @@
                                 <p class="text-slate-400 py-3 text-center">Wczytywanie nazw nadawcy...</p>
                             </div>
                         </div>
+                    </div>
+                </div>
+
+                <!-- Webhook Callback DLR Configuration Card -->
+                <div class="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-4">
+                    <div class="flex items-center justify-between">
+                        <h3 class="font-bold text-base flex items-center gap-2">
+                            <i class="fa-solid fa-satellite-dish text-blue-500"></i> Raporty doręczeń w czasie rzeczywistym (Callback DLR)
+                        </h3>
+                        <span class="px-2.5 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-300 font-bold text-xs">Automatyczny Webhook</span>
+                    </div>
+
+                    <p class="text-xs text-slate-500 leading-relaxed">
+                        Gdy odbiorca odbierze wiadomość SMS, sieć GSM generuje raport doręczenia (DLR). Aby statusy w zakładce <b>Historia</b> automatycznie zmieniały się na <b>DORĘCZONA (DELIVERED)</b> lub <b>NIEDORĘCZONA (UNDELIVERED)</b>, wklej poniższy adres w panelu SMSAPI.
+                    </p>
+
+                    <div class="p-3.5 bg-slate-50 dark:bg-slate-700/50 rounded-xl border border-slate-200 dark:border-slate-600 space-y-2">
+                        <label class="block text-[10px] uppercase font-bold text-slate-400">Adres Callback DLR dla Twojej instalacji:</label>
+                        <div class="flex items-center gap-2">
+                            <input type="text" readonly id="settingsCallbackUrl" value="" class="flex-1 bg-white dark:bg-slate-800 px-3 py-2 rounded-xl font-mono text-xs text-blue-600 dark:text-blue-300 border border-slate-300 dark:border-slate-600 outline-none select-all">
+                            <button type="button" onclick="navigator.clipboard.writeText(document.getElementById('settingsCallbackUrl').value); alert('Skopiowano adres Callback do schowka!');" class="px-4 py-2 bg-blue-600 text-white rounded-xl font-semibold text-xs hover:bg-blue-700 transition-colors shadow flex items-center gap-1.5">
+                                <i class="fa-solid fa-copy"></i> Kopiuj
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="text-xs text-slate-500 flex items-center gap-2">
+                        <i class="fa-solid fa-arrow-up-right-from-square text-blue-500"></i>
+                        <span>Panel SMSAPI: <b>Ustawienia API</b> &rarr; <b>Adresy Callback</b> &rarr; <b>Callback SMS (raporty doręczeń)</b></span>
                     </div>
                 </div>
 
@@ -1726,9 +1773,11 @@
                 const statusText = document.getElementById('statusText');
                 const cfgDomain = document.getElementById('cfgDomain');
                 const cfgDefaultSender = document.getElementById('cfgDefaultSender');
+                const settingsCb = document.getElementById('settingsCallbackUrl');
 
                 if (cfgDomain) cfgDomain.value = data.domain || 'https://api.smsapi.pl/';
                 if (cfgDefaultSender) cfgDefaultSender.value = data.default_sender || '';
+                if (settingsCb) settingsCb.value = window.location.origin + '/api/callbacks/sms';
 
                 if (data.is_configured) {
                     statusDot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-500';
@@ -3035,6 +3084,57 @@
         }
 
         // History
+        function formatStatusBadge(status) {
+            const s = (status || '').toUpperCase();
+            if (s === 'DELIVERED') {
+                return `<span class="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300 inline-flex items-center gap-1 shadow-sm" title="Raport DLR: Wiadomość fizycznie doręczona na telefon odbiorcy"><i class="fa-solid fa-check-double text-[10px] text-emerald-600"></i> DORĘCZONA</span>`;
+            } else if (s === 'UNDELIVERED' || s === 'REJECTED' || s === 'FAILED' || s === 'ERROR') {
+                return `<span class="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-rose-100 text-rose-800 dark:bg-rose-900/50 dark:text-rose-300 inline-flex items-center gap-1 shadow-sm" title="Błąd dostarczenia / numer nieaktywny"><i class="fa-solid fa-xmark text-[10px] text-rose-600"></i> NIEDORĘCZONA</span>`;
+            } else if (s === 'EXPIRED') {
+                return `<span class="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300 inline-flex items-center gap-1 shadow-sm" title="Wygasła w kolejce sieci GSM"><i class="fa-regular fa-clock text-[10px] text-amber-600"></i> WYGASŁA</span>`;
+            } else if (s === 'VERIFIED') {
+                return `<span class="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-purple-100 text-purple-800 dark:bg-purple-900/50 dark:text-purple-300 inline-flex items-center gap-1 shadow-sm"><i class="fa-solid fa-shield-check text-[10px] text-purple-600"></i> ZWERYFIKOWANY</span>`;
+            } else if (s === 'PARTIAL') {
+                return `<span class="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300 inline-flex items-center gap-1 shadow-sm"><i class="fa-solid fa-triangle-exclamation text-[10px]"></i> CZĘŚCIOWO</span>`;
+            } else {
+                return `<span class="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300 inline-flex items-center gap-1 shadow-sm" title="Wiadomość przyjęta przez sieć GSM i wysłana"><i class="fa-solid fa-paper-plane text-[9px] text-blue-600"></i> WYSLANA (W SIECI)</span>`;
+            }
+        }
+
+        function showCallbackSetupModal() {
+            const callbackUrl = window.location.origin + '/api/callbacks/sms';
+            Swal.fire({
+                title: 'Konfiguracja Callback DLR (Raporty doręczeń)',
+                html: `
+                    <div class="text-left text-xs space-y-3 text-slate-600 dark:text-slate-300">
+                        <p>Aby statusy w historii automatycznie aktualizowały się na <b>DORĘCZONA (DELIVERED)</b> lub <b>NIEDORĘCZONA (UNDELIVERED)</b> natychmiast po odebraniu SMS-a przez telefon klienta, ustaw poniższy adres Callback w panelu SMSAPI:</p>
+                        
+                        <div class="p-3 bg-slate-100 dark:bg-slate-700/60 rounded-xl border border-slate-200 dark:border-slate-600">
+                            <label class="block text-[10px] uppercase font-bold text-slate-400 mb-1">Twój Adres Callback DLR:</label>
+                            <div class="flex items-center gap-2">
+                                <input type="text" readonly id="swalCallbackUrl" value="${callbackUrl}" class="flex-1 bg-white dark:bg-slate-800 px-3 py-1.5 rounded-lg font-mono text-[11px] text-blue-600 dark:text-blue-300 border border-slate-300 dark:border-slate-600 outline-none select-all">
+                                <button type="button" onclick="navigator.clipboard.writeText(document.getElementById('swalCallbackUrl').value); alert('Skopiowano adres Callback do schowka!');" class="px-3 py-1.5 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors">
+                                    Kopiuj
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="space-y-1.5 bg-amber-50 dark:bg-amber-950/30 p-3 rounded-xl border border-amber-200 dark:border-amber-900/40 text-amber-900 dark:text-amber-200">
+                            <div class="font-bold">Gdzie to wkleić w Panelu SMSAPI?</div>
+                            <ol class="list-decimal pl-4 space-y-1 text-[11px]">
+                                <li>Zaloguj się na <a href="https://ssl.smsapi.pl" target="_blank" class="underline font-bold text-blue-600">smsapi.pl</a></li>
+                                <li>Przejdź do: <b>Ustawienia API &rarr; Adresy Callback</b></li>
+                                <li>W sekcji <b>Callback SMS (raporty doręczeń)</b> wklej powyższy URL i zapisz.</li>
+                            </ol>
+                        </div>
+                    </div>
+                `,
+                confirmButtonText: 'Rozumiem',
+                confirmButtonColor: '#2563eb',
+                width: '600px'
+            });
+        }
+
         async function fetchHistory() {
             try {
                 const q = document.getElementById('historySearch')?.value || '';
@@ -3059,9 +3159,7 @@
                         <td class="py-2.5 px-3 font-medium text-slate-800 dark:text-slate-200">${item.recipients}</td>
                         <td class="py-2.5 px-3 text-slate-600 dark:text-slate-300 max-w-xs truncate" title="${item.message}">${item.message}</td>
                         <td class="py-2.5 px-3">
-                            <span class="px-2 py-0.5 rounded text-[10px] font-bold ${item.status === 'SUCCESS' || item.status === 'VERIFIED' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' : 'bg-rose-100 text-rose-700'}">
-                                ${item.status}
-                            </span>
+                            ${formatStatusBadge(item.status)}
                         </td>
                         <td class="py-2.5 px-3 text-right font-bold text-slate-700 dark:text-slate-200">${item.points_cost?.toFixed(2) || '0.00'} pkt</td>
                     </tr>

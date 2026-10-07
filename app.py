@@ -1161,6 +1161,61 @@ def remove_from_blacklist(id):
 # ==========================================================
 # API Routes: Fast Indexed History & Statistics
 # ==========================================================
+@app.route('/api/callbacks/sms', methods=['GET', 'POST'])
+@app.route('/api/callbacks/dlr', methods=['GET', 'POST'])
+def sms_callback():
+    """
+    SMSAPI DLR (Delivery Report) Callback Endpoint.
+    Receives real-time delivery status updates from SMSAPI and updates the history table.
+    """
+    try:
+        data = request.form.to_dict() if request.method == 'POST' else request.args.to_dict()
+        if not data and request.is_json:
+            data = request.get_json() or {}
+
+        msg_id = data.get('MsgId') or data.get('msgid') or data.get('id')
+        status_name = data.get('status_name') or data.get('status')
+        to_number = data.get('to') or data.get('recipient')
+        done_date = data.get('donedate') or data.get('donedate_time')
+
+        if not status_name:
+            status_code_map = {
+                '401': 'NOT_FOUND',
+                '402': 'EXPIRED',
+                '403': 'SENT',
+                '404': 'DELIVERED',
+                '405': 'UNDELIVERED',
+                '406': 'FAILED',
+                '407': 'REJECTED'
+            }
+            raw_status = str(data.get('status', ''))
+            status_name = status_code_map.get(raw_status, raw_status or 'DELIVERED')
+
+        status_upper = str(status_name).strip().upper()
+
+        if msg_id:
+            with get_db() as conn:
+                cursor = conn.cursor()
+                cursor.execute('SELECT id, status, details FROM history WHERE msg_ids LIKE ?', (f'%{msg_id}%',))
+                row = cursor.fetchone()
+                if row:
+                    h_id = row['id']
+                    cursor.execute('''
+                        UPDATE history 
+                        SET status = ?, 
+                            details = CASE 
+                                WHEN details IS NOT NULL AND details != '' THEN details || ' | DLR: ' || ? 
+                                ELSE 'DLR: ' || ? 
+                            END
+                        WHERE id = ?
+                    ''', (status_upper, f'{status_upper} ({to_number or ""})', f'{status_upper} ({to_number or ""})', h_id))
+                    conn.commit()
+        return "OK", 200
+    except Exception as e:
+        print(f"Error handling SMS callback: {e}", file=sys.stderr)
+        return f"ERROR: {str(e)}", 400
+
+
 @app.route('/api/history', methods=['GET'])
 def get_history():
     search = request.args.get('q', '').strip()
