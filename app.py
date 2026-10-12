@@ -1303,8 +1303,160 @@ def bulk_remove_group_members(group_id):
 
 
 # ==========================================================
-# Helpers: File Parsing & Column Auto-Mapping
+# Helpers: File Parsing & Column Auto-Mapping (Universal Excel/Optima/CSV)
 # ==========================================================
+import html.parser
+import xml.etree.ElementTree as ET
+
+
+class HTMLTableParser(html.parser.HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.rows = []
+        self.current_row = []
+        self.current_cell = []
+        self.in_cell = False
+
+    def handle_starttag(self, tag, attrs):
+        if tag == 'tr':
+            self.current_row = []
+        elif tag in ('td', 'th'):
+            self.in_cell = True
+            self.current_cell = []
+
+    def handle_endtag(self, tag):
+        if tag in ('td', 'th'):
+            self.in_cell = False
+            cell_text = ''.join(self.current_cell).replace('\xa0', ' ').strip()
+            self.current_row.append(cell_text)
+        elif tag == 'tr':
+            if any(self.current_row):
+                self.rows.append(self.current_row)
+
+    def handle_data(self, data):
+        if self.in_cell:
+            self.current_cell.append(data)
+
+
+def detect_header_row_index(raw_rows: List[List[str]]) -> int:
+    if not raw_rows:
+        return 0
+    best_idx = 0
+    best_score = -1
+    header_keywords = [
+        r'tel', r'telefon', r'kom[oó]rk', r'phone', r'imi[eę]', r'nazwisk',
+        r'mail', r'email', r'kod', r'lp', r'pracownik', r'klient', r'kontrahent', r'miasto'
+    ]
+    for idx, row in enumerate(raw_rows[:12]):
+        non_empty = [c for c in row if c and str(c).strip()]
+        if not non_empty:
+            continue
+        score = len(non_empty)
+        row_text = ' '.join(str(c).lower() for c in non_empty)
+        kw_matches = sum(1 for kw in header_keywords if re.search(kw, row_text))
+        score += kw_matches * 4
+        # Penalty if row contains phone numbers (means it's already a data row, not a header)
+        if any(re.match(r'^\+?[0-9\s\-()]{7,15}$', str(c).strip()) for c in non_empty):
+            score -= 6
+        if score > best_score:
+            best_score = score
+            best_idx = idx
+    return best_idx
+
+
+def extract_raw_rows_from_file(file_bytes: bytes, filename: str) -> List[List[str]]:
+    # 1. Check if file is HTML or XML Spreadsheet (Comarch Optima / ERP HTML export disguised as .xls)
+    text_sample = None
+    for enc in ['utf-8-sig', 'cp1250', 'iso-8859-2', 'utf-8', 'latin1']:
+        try:
+            decoded = file_bytes[:8192].decode(enc)
+            text_sample = decoded
+            break
+        except UnicodeDecodeError:
+            continue
+
+    if text_sample:
+        sample_lower = text_sample.lower()
+        if '<table' in sample_lower or '<html' in sample_lower:
+            for enc in ['cp1250', 'utf-8-sig', 'iso-8859-2', 'utf-8', 'latin1']:
+                try:
+                    full_text = file_bytes.decode(enc)
+                    parser = HTMLTableParser()
+                    parser.feed(full_text)
+                    if parser.rows:
+                        return parser.rows
+                except Exception:
+                    continue
+
+        if 'urn:schemas-microsoft-com:office:spreadsheet' in sample_lower or '<workbook' in sample_lower:
+            try:
+                root = ET.fromstring(file_bytes)
+                xml_rows = []
+                for row_el in root.iter('{urn:schemas-microsoft-com:office:spreadsheet}Row'):
+                    row = []
+                    for cell_el in row_el.iter('{urn:schemas-microsoft-com:office:spreadsheet}Cell'):
+                        data_el = cell_el.find('{urn:schemas-microsoft-com:office:spreadsheet}Data')
+                        row.append(data_el.text.strip() if data_el is not None and data_el.text else '')
+                    if any(row):
+                        xml_rows.append(row)
+                if xml_rows:
+                    return xml_rows
+            except Exception:
+                pass
+
+    # 2. Try openpyxl (standard .xlsx / .xlsm format)
+    try:
+        import openpyxl
+        wb = openpyxl.load_workbook(io.BytesIO(file_bytes), data_only=True)
+        ws = wb.active
+        rows = []
+        for row in ws.iter_rows(values_only=True):
+            if row is None:
+                continue
+            str_row = [str(c).strip() if c is not None else '' for c in row]
+            if any(str_row):
+                rows.append(str_row)
+        if rows:
+            return rows
+    except Exception:
+        pass
+
+    # 3. Try xlrd (binary .xls BIFF8 Excel 97-2003 format)
+    try:
+        import xlrd
+        wb = xlrd.open_workbook(file_contents=file_bytes)
+        ws = wb.sheet_by_index(0)
+        rows = []
+        for rx in range(ws.nrows):
+            row = [str(ws.cell_value(rx, cx)).strip() for cx in range(ws.ncols)]
+            # Clean floating numbers e.g. 500123456.0 -> 500123456
+            row = [re.sub(r'\.0$', '', c) if re.match(r'^\d+\.0$', c) else c for c in row]
+            if any(row):
+                rows.append(row)
+        if rows:
+            return rows
+    except Exception:
+        pass
+
+    # 4. Fallback: CSV / TSV / Delimited plain text with multiple encodings
+    for enc in ['cp1250', 'utf-8-sig', 'utf-8', 'iso-8859-2', 'latin1']:
+        try:
+            content = file_bytes.decode(enc)
+            sample = content[:4096]
+            delim = ';' if ';' in sample else ('\t' if '\t' in sample else ('|' if '|' in sample else ','))
+            reader = csv.reader(io.StringIO(content), delimiter=delim)
+            rows = []
+            for r in reader:
+                if r and any(c.strip() for c in r):
+                    rows.append([c.strip() for c in r])
+            if rows:
+                return rows
+        except Exception:
+            continue
+
+    return []
+
+
 def guess_column_mapping(headers: List[str], sample_rows: List[List[str]]) -> Dict[str, str]:
     mapping = {
         'phone': '',
@@ -1317,8 +1469,8 @@ def guess_column_mapping(headers: List[str], sample_rows: List[List[str]]) -> Di
     }
 
     patterns = [
-        ('last_name', [r'nazwisk', r'last_?name', r'lname', r'surname']),
-        ('first_name', [r'imi[eę]', r'first_?name', r'fname', r'first', r'imiona']),
+        ('last_name', [r'^nazwisko$', r'nazwisko(?!\s*i\s*imi)', r'last_?name', r'lname', r'surname']),
+        ('first_name', [r'imi[eę]', r'first_?name', r'fname', r'first', r'imiona', r'nazwisko\s*i\s*imi', r'pracownik', r'kontrahent', r'klient']),
         ('phone', [r'tel', r'phone', r'kom[oó]rk', r'msisdn', r'numer', r'odbiorca', r'kontakt', r'mobile', r'telefon']),
         ('email', [r'e-?mail', r'mail', r'poczta']),
         ('city', [r'miasto', r'city', r'miejscowo[sś][cć]']),
@@ -1337,13 +1489,13 @@ def guess_column_mapping(headers: List[str], sample_rows: List[List[str]]) -> Di
                 used_headers.add(h)
                 break
 
-    # If first_name not found, check 'klient' / 'osoba' (if not an ID/Number column)
+    # If first_name not found, check 'klient' / 'osoba' / 'pracownik' / 'nazwa' (if not an ID/Number column)
     if not mapping['first_name']:
         for h in headers:
             if h in used_headers:
                 continue
             h_clean = str(h).lower().strip()
-            if not re.search(r'^(id|nr|lp|kod)', h_clean) and any(re.search(pat, h_clean) for pat in [r'klient', r'odbiorca', r'osoba']):
+            if not re.search(r'^(id|nr|lp|kod)', h_clean) and any(re.search(pat, h_clean) for pat in [r'klient', r'odbiorca', r'osoba', r'pracownik', r'nazwa']):
                 mapping['first_name'] = h
                 used_headers.add(h)
                 break
@@ -1368,52 +1520,12 @@ def guess_column_mapping(headers: List[str], sample_rows: List[List[str]]) -> Di
 
 
 def _parse_contacts_file_raw(file_bytes: bytes, filename: str, has_headers: bool = True):
-    filename_lower = filename.lower()
-    raw_rows = []
-
-    if filename_lower.endswith('.xlsx') or filename_lower.endswith('.xls'):
-        try:
-            import openpyxl
-            wb = openpyxl.load_workbook(io.BytesIO(file_bytes), data_only=True)
-            ws = wb.active
-            for row in ws.iter_rows(values_only=True):
-                if row is None:
-                    continue
-                str_row = [str(c).strip() if c is not None else '' for c in row]
-                if any(str_row):
-                    raw_rows.append(str_row)
-        except Exception as e:
-            raise ValueError(f"Błąd odczytu pliku Excel: {str(e)}")
-    else:
-        # CSV or TXT
-        content = None
-        for enc in ['utf-8-sig', 'utf-8', 'cp1250', 'iso-8859-2', 'latin1']:
-            try:
-                content = file_bytes.decode(enc)
-                break
-            except UnicodeDecodeError:
-                continue
-        if content is None:
-            content = file_bytes.decode('utf-8', errors='replace')
-
-        sample = content[:4096]
-        if ';' in sample:
-            delimiter = ';'
-        elif '\t' in sample:
-            delimiter = '\t'
-        elif '|' in sample:
-            delimiter = '|'
-        else:
-            delimiter = ','
-
-        reader = csv.reader(io.StringIO(content), delimiter=delimiter)
-        for row in reader:
-            if row and any(c.strip() for c in row):
-                raw_rows.append([c.strip() for c in row])
+    raw_rows = extract_raw_rows_from_file(file_bytes, filename)
 
     if not raw_rows:
         return {'headers': [], 'data_rows': [], 'sample_rows': [], 'total_rows': 0, 'suggested_mapping': {}}
 
+    # Max columns
     max_cols = max(len(r) for r in raw_rows)
     normalized_rows = []
     for r in raw_rows:
@@ -1421,13 +1533,23 @@ def _parse_contacts_file_raw(file_bytes: bytes, filename: str, has_headers: bool
         normalized_rows.append(r_padded)
 
     if has_headers:
-        headers = [h if h else f'Kolumna {i+1}' for i, h in enumerate(normalized_rows[0])]
-        data_rows = normalized_rows[1:]
+        header_idx = detect_header_row_index(normalized_rows)
+        headers = [h if h else f'Kolumna {i+1}' for i, h in enumerate(normalized_rows[header_idx])]
+        data_rows = normalized_rows[header_idx + 1:]
     else:
         headers = [f'Kolumna {i+1}' for i in range(max_cols)]
         data_rows = normalized_rows
 
     sample_rows = data_rows[:5]
+    suggested = guess_column_mapping(headers, sample_rows)
+
+    return {
+        'headers': headers,
+        'data_rows': data_rows,
+        'sample_rows': sample_rows,
+        'total_rows': len(data_rows),
+        'suggested_mapping': suggested
+    }
     suggested = guess_column_mapping(headers, sample_rows)
 
     return {
