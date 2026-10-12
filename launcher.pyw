@@ -1,8 +1,8 @@
 #!/usr/bin/env pythonw
 # -*- coding: utf-8 -*-
 """
-SMSAPI Studio - Silent Windowless Launcher (.pyw)
-Runs with pythonw (no black terminal window on Windows).
+SMSAPI Studio - Silent Windowless Single-Instance Launcher (.pyw)
+Ensures only 1 instance runs on fixed port 5000 and cleans up stale processes.
 """
 
 import os
@@ -11,6 +11,8 @@ import time
 import threading
 import webbrowser
 import socket
+import urllib.request
+import subprocess
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 if CURRENT_DIR not in sys.path:
@@ -18,17 +20,39 @@ if CURRENT_DIR not in sys.path:
 
 from app import app
 
+FIXED_PORT = 5000
 
-def is_port_in_use(port: int) -> bool:
+
+def is_port_in_use(port: int = FIXED_PORT) -> bool:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         return s.connect_ex(('127.0.0.1', port)) == 0
 
 
-def find_free_port(start_port: int = 5000) -> int:
-    port = start_port
-    while is_port_in_use(port) and port < 5100:
-        port += 1
-    return port
+def is_app_already_running(port: int = FIXED_PORT) -> bool:
+    try:
+        req = urllib.request.Request(f"http://127.0.0.1:{port}/api/heartbeat", headers={'User-Agent': 'SMSAPI-Studio-Launcher'})
+        with urllib.request.urlopen(req, timeout=1.0) as response:
+            return response.status == 200
+    except Exception:
+        return False
+
+
+def free_port(port: int = FIXED_PORT):
+    """If port 5000 is occupied by a dead/frozen process on Windows, terminate it."""
+    if sys.platform == 'win32' and is_port_in_use(port):
+        try:
+            output = subprocess.check_output(f'netstat -ano | findstr :{port}', shell=True).decode()
+            pids = set()
+            for line in output.strip().split('\n'):
+                parts = line.strip().split()
+                if len(parts) >= 5 and f':{port}' in parts[1]:
+                    pids.add(parts[-1])
+            for pid in pids:
+                if pid and pid != '0':
+                    subprocess.call(f'taskkill /F /PID {pid} >nul 2>&1', shell=True)
+            time.sleep(0.8)
+        except Exception:
+            pass
 
 
 def open_browser(url: str):
@@ -37,17 +61,26 @@ def open_browser(url: str):
 
 
 def main():
-    port = int(os.environ.get('PORT', find_free_port(5000)))
-    url = f"http://localhost:{port}"
+    url = f"http://localhost:{FIXED_PORT}"
 
+    # 1. Single Instance check: if app is already running, just open browser and exit!
+    if is_app_already_running(FIXED_PORT):
+        webbrowser.open(url)
+        sys.exit(0)
+
+    # 2. If port is held by an unresponsive zombie process, free it
+    if is_port_in_use(FIXED_PORT):
+        free_port(FIXED_PORT)
+
+    # 3. Open browser on launch
     threading.Thread(target=open_browser, args=(url,), daemon=True).start()
 
-    # Run silently
+    # 4. Run Flask silently on fixed port 5000
     import logging
     log = logging.getLogger('werkzeug')
     log.setLevel(logging.ERROR)
 
-    app.run(host='0.0.0.0', port=port, debug=False)
+    app.run(host='0.0.0.0', port=FIXED_PORT, debug=False, threaded=True)
 
 
 if __name__ == '__main__':

@@ -79,19 +79,22 @@ if not "%PYW_EXE%"=="" (
 :: 3. Odczekaj 2 sekundy na zainicjowanie portu 5000
 timeout /t 2 /nobreak >nul 2>&1
 
-:: 4. Sprawdz i uruchom tunel ngrok (jesli plik ngrok.exe istnieje)
+:: 4. Sprawdz i uruchom tunel ngrok (jesli plik ngrok.exe istnieje i nie jest juz uruchomiony)
 if exist "%~dp0ngrok.exe" (
-    set "DOMAIN_PARAM="
-    if exist "%~dp0ngrok_domain.txt" (
-        set /p NGROK_DOMAIN=<"%~dp0ngrok_domain.txt"
-        if not "%NGROK_DOMAIN%"=="" (
-            set DOMAIN_PARAM=--domain=%NGROK_DOMAIN%
+    tasklist /fi "imagename eq ngrok.exe" 2>nul | find /i "ngrok.exe" >nul
+    if errorlevel 1 (
+        set "DOMAIN_PARAM="
+        if exist "%~dp0ngrok_domain.txt" (
+            set /p NGROK_DOMAIN=<"%~dp0ngrok_domain.txt"
+            if not "%NGROK_DOMAIN%"=="" (
+                set DOMAIN_PARAM=--domain=%NGROK_DOMAIN%
+            )
         )
-    )
-    
-    if "%DOMAIN_PARAM%"=="" (
-        start "" /b "%~dp0ngrok.exe" http 5000 --log=stdout >nul 2>&1
-    ) else (
-        start "" /b "%~dp0ngrok.exe" http %DOMAIN_PARAM% 5000 --log=stdout >nul 2>&1
+        
+        if "%DOMAIN_PARAM%"=="" (
+            start "" /b "%~dp0ngrok.exe" http 5000 --log=stdout >nul 2>&1
+        ) else (
+            start "" /b "%~dp0ngrok.exe" http %DOMAIN_PARAM% 5000 --log=stdout >nul 2>&1
+        )
     )
 )

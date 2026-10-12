@@ -1676,6 +1676,31 @@
             document.getElementById('themeIcon')?.classList.replace('fa-moon', 'fa-sun');
         }
 
+        // Heartbeat Watchdog & Browser Auto-Shutdown
+        function sendHeartbeat() {
+            if (navigator.onLine) {
+                fetch('/api/heartbeat', { method: 'POST', keepalive: true }).catch(() => {});
+            }
+        }
+        setInterval(sendHeartbeat, 4000);
+        sendHeartbeat();
+
+        // Browser close detection (sendBeacon)
+        function notifyBrowserClosing() {
+            if (navigator.sendBeacon) {
+                navigator.sendBeacon('/api/browser-closing');
+            } else {
+                fetch('/api/browser-closing', { method: 'POST', keepalive: true }).catch(() => {});
+            }
+        }
+        window.addEventListener('beforeunload', notifyBrowserClosing);
+        window.addEventListener('pagehide', notifyBrowserClosing);
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') {
+                sendHeartbeat();
+            }
+        });
+
         // App Initialization
         window.addEventListener('DOMContentLoaded', () => {
             Promise.allSettled([
