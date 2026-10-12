@@ -1305,37 +1305,85 @@ def bulk_remove_group_members(group_id):
 # ==========================================================
 # Helpers: File Parsing & Column Auto-Mapping (Universal Excel/Optima/CSV)
 # ==========================================================
-import html.parser
+import html
+import email
+import email.policy
 import xml.etree.ElementTree as ET
 
 
-class HTMLTableParser(html.parser.HTMLParser):
-    def __init__(self):
-        super().__init__()
-        self.rows = []
-        self.current_row = []
-        self.current_cell = []
-        self.in_cell = False
+def extract_rows_from_html_str(html_text: str) -> List[List[str]]:
+    rows = []
+    # Find all table rows <tr...>...</tr> (case insensitive, dotall)
+    tr_matches = re.findall(r'<tr[^>]*>(.*?)</tr>', html_text, re.IGNORECASE | re.DOTALL)
+    for tr_content in tr_matches:
+        cells = []
+        cell_matches = re.findall(r'<t[dh][^>]*>(.*?)</t[dh]>', tr_content, re.IGNORECASE | re.DOTALL)
+        for cell_html in cell_matches:
+            # Strip inner HTML tags like <span>, <font>, <b>, etc.
+            text = re.sub(r'<[^>]+>', ' ', cell_html)
+            text = html.unescape(text)
+            text = text.replace('\xa0', ' ')
+            text = re.sub(r'\s+', ' ', text).strip()
+            cells.append(text)
+        if any(cells):
+            rows.append(cells)
+    return rows
 
-    def handle_starttag(self, tag, attrs):
-        if tag == 'tr':
-            self.current_row = []
-        elif tag in ('td', 'th'):
-            self.in_cell = True
-            self.current_cell = []
 
-    def handle_endtag(self, tag):
-        if tag in ('td', 'th'):
-            self.in_cell = False
-            cell_text = ''.join(self.current_cell).replace('\xa0', ' ').strip()
-            self.current_row.append(cell_text)
-        elif tag == 'tr':
-            if any(self.current_row):
-                self.rows.append(self.current_row)
+def extract_rows_from_xml_spreadsheet(xml_bytes: bytes) -> List[List[str]]:
+    try:
+        root = ET.fromstring(xml_bytes)
+        rows = []
+        for elem in root.iter():
+            tag = elem.tag.split('}')[-1] if '}' in elem.tag else elem.tag
+            if tag == 'Row':
+                row = []
+                for cell in elem.iter():
+                    c_tag = cell.tag.split('}')[-1] if '}' in cell.tag else cell.tag
+                    if c_tag == 'Data' and cell.text:
+                        row.append(cell.text.strip())
+                if any(row):
+                    rows.append(row)
+        return rows
+    except Exception:
+        return []
 
-    def handle_data(self, data):
-        if self.in_cell:
-            self.current_cell.append(data)
+
+def decode_text_bytes(file_bytes: bytes) -> str:
+    # Check for BOM markers first
+    if file_bytes.startswith(b'\xff\xfe'):
+        try:
+            return file_bytes.decode('utf-16-le')
+        except Exception:
+            pass
+    if file_bytes.startswith(b'\xfe\xff'):
+        try:
+            return file_bytes.decode('utf-16-be')
+        except Exception:
+            pass
+    if file_bytes.startswith(b'\xef\xbb\xbf'):
+        try:
+            return file_bytes.decode('utf-8-sig')
+        except Exception:
+            pass
+
+    # Check for null bytes indicative of UTF-16 without BOM
+    sample = file_bytes[:1024]
+    if sample.count(b'\x00') > len(sample) // 4:
+        for enc in ['utf-16-le', 'utf-16', 'utf-16-be']:
+            try:
+                return file_bytes.decode(enc)
+            except Exception:
+                pass
+
+    # Try standard Polish and European encodings
+    for enc in ['utf-8', 'cp1250', 'windows-1250', 'iso-8859-2', 'latin1']:
+        try:
+            return file_bytes.decode(enc)
+        except Exception:
+            pass
+
+    return file_bytes.decode('utf-8', errors='replace')
 
 
 def detect_header_row_index(raw_rows: List[List[str]]) -> int:
@@ -1347,7 +1395,7 @@ def detect_header_row_index(raw_rows: List[List[str]]) -> int:
         r'tel', r'telefon', r'kom[oó]rk', r'phone', r'imi[eę]', r'nazwisk',
         r'mail', r'email', r'kod', r'lp', r'pracownik', r'klient', r'kontrahent', r'miasto'
     ]
-    for idx, row in enumerate(raw_rows[:12]):
+    for idx, row in enumerate(raw_rows[:15]):
         non_empty = [c for c in row if c and str(c).strip()]
         if not non_empty:
             continue
@@ -1365,94 +1413,86 @@ def detect_header_row_index(raw_rows: List[List[str]]) -> int:
 
 
 def extract_raw_rows_from_file(file_bytes: bytes, filename: str) -> List[List[str]]:
-    # 1. Check if file is HTML or XML Spreadsheet (Comarch Optima / ERP HTML export disguised as .xls)
-    text_sample = None
-    for enc in ['utf-8-sig', 'cp1250', 'iso-8859-2', 'utf-8', 'latin1']:
+    # 1. Decode as text (handles UTF-16, UTF-8, CP1250, HTML, XML, MHTML)
+    text_content = decode_text_bytes(file_bytes)
+
+    # Check for MHTML multipart archives
+    if text_content.lower().startswith('mime-version:') or 'multipart/related' in text_content.lower()[:1024]:
         try:
-            decoded = file_bytes[:8192].decode(enc)
-            text_sample = decoded
-            break
-        except UnicodeDecodeError:
-            continue
+            msg = email.message_from_bytes(file_bytes, policy=email.policy.default)
+            for part in msg.walk():
+                if part.get_content_type() in ('text/html', 'application/xml', 'text/xml'):
+                    text_content = part.get_content()
+                    break
+        except Exception:
+            pass
 
-    if text_sample:
-        sample_lower = text_sample.lower()
-        if '<table' in sample_lower or '<html' in sample_lower:
-            for enc in ['cp1250', 'utf-8-sig', 'iso-8859-2', 'utf-8', 'latin1']:
-                try:
-                    full_text = file_bytes.decode(enc)
-                    parser = HTMLTableParser()
-                    parser.feed(full_text)
-                    if parser.rows:
-                        return parser.rows
-                except Exception:
-                    continue
-
-        if 'urn:schemas-microsoft-com:office:spreadsheet' in sample_lower or '<workbook' in sample_lower:
-            try:
-                root = ET.fromstring(file_bytes)
-                xml_rows = []
-                for row_el in root.iter('{urn:schemas-microsoft-com:office:spreadsheet}Row'):
-                    row = []
-                    for cell_el in row_el.iter('{urn:schemas-microsoft-com:office:spreadsheet}Cell'):
-                        data_el = cell_el.find('{urn:schemas-microsoft-com:office:spreadsheet}Data')
-                        row.append(data_el.text.strip() if data_el is not None and data_el.text else '')
-                    if any(row):
-                        xml_rows.append(row)
-                if xml_rows:
-                    return xml_rows
-            except Exception:
-                pass
-
-    # 2. Try openpyxl (standard .xlsx / .xlsm format)
-    try:
-        import openpyxl
-        wb = openpyxl.load_workbook(io.BytesIO(file_bytes), data_only=True)
-        ws = wb.active
-        rows = []
-        for row in ws.iter_rows(values_only=True):
-            if row is None:
-                continue
-            str_row = [str(c).strip() if c is not None else '' for c in row]
-            if any(str_row):
-                rows.append(str_row)
+    # Check for HTML Table
+    if '<tr' in text_content.lower() or '<table' in text_content.lower():
+        rows = extract_rows_from_html_str(text_content)
         if rows:
             return rows
-    except Exception:
-        pass
 
-    # 3. Try xlrd (binary .xls BIFF8 Excel 97-2003 format)
+    # Check for XML Spreadsheet (SpreadsheetML)
+    if 'urn:schemas-microsoft-com:office:spreadsheet' in text_content.lower() or '<workbook' in text_content.lower():
+        rows = extract_rows_from_xml_spreadsheet(text_content.encode('utf-8'))
+        if rows:
+            return rows
+
+    # 2. Try xlrd (binary .xls BIFF8 Excel 97-2003) - scan all sheets
     try:
         import xlrd
         wb = xlrd.open_workbook(file_contents=file_bytes)
-        ws = wb.sheet_by_index(0)
-        rows = []
-        for rx in range(ws.nrows):
-            row = [str(ws.cell_value(rx, cx)).strip() for cx in range(ws.ncols)]
-            # Clean floating numbers e.g. 500123456.0 -> 500123456
-            row = [re.sub(r'\.0$', '', c) if re.match(r'^\d+\.0$', c) else c for c in row]
-            if any(row):
-                rows.append(row)
-        if rows:
-            return rows
+        best_sheet_rows = []
+        for sheet_idx in range(wb.nsheets):
+            ws = wb.sheet_by_index(sheet_idx)
+            sheet_rows = []
+            for rx in range(ws.nrows):
+                row = [str(ws.cell_value(rx, cx)).strip() for cx in range(ws.ncols)]
+                row = [re.sub(r'\.0$', '', c) if re.match(r'^\d+\.0$', c) else c for c in row]
+                if any(row):
+                    sheet_rows.append(row)
+            if len(sheet_rows) > len(best_sheet_rows):
+                best_sheet_rows = sheet_rows
+        if best_sheet_rows:
+            return best_sheet_rows
     except Exception:
         pass
 
-    # 4. Fallback: CSV / TSV / Delimited plain text with multiple encodings
-    for enc in ['cp1250', 'utf-8-sig', 'utf-8', 'iso-8859-2', 'latin1']:
-        try:
-            content = file_bytes.decode(enc)
-            sample = content[:4096]
-            delim = ';' if ';' in sample else ('\t' if '\t' in sample else ('|' if '|' in sample else ','))
-            reader = csv.reader(io.StringIO(content), delimiter=delim)
+    # 3. Try openpyxl (standard .xlsx / .xlsm format) - scan all sheets
+    try:
+        import openpyxl
+        wb = openpyxl.load_workbook(io.BytesIO(file_bytes), data_only=True)
+        best_sheet_rows = []
+        for ws in wb.worksheets:
+            sheet_rows = []
+            for row in ws.iter_rows(values_only=True):
+                if row is None:
+                    continue
+                str_row = [str(c).strip() if c is not None else '' for c in row]
+                if any(str_row):
+                    sheet_rows.append(str_row)
+            if len(sheet_rows) > len(best_sheet_rows):
+                best_sheet_rows = sheet_rows
+        if best_sheet_rows:
+            return best_sheet_rows
+    except Exception:
+        pass
+
+    # 4. Fallback: CSV / Delimited plain text
+    if text_content:
+        for delim in [';', '\t', '|', ',']:
+            reader = csv.reader(io.StringIO(text_content), delimiter=delim)
             rows = []
             for r in reader:
                 if r and any(c.strip() for c in r):
                     rows.append([c.strip() for c in r])
-            if rows:
+            if rows and len(rows) > 1 and len(rows[0]) > 1:
                 return rows
-        except Exception:
-            continue
+        reader = csv.reader(io.StringIO(text_content))
+        rows = [r for r in reader if r and any(c.strip() for c in r)]
+        if rows:
+            return rows
 
     return []
 
@@ -1527,18 +1567,35 @@ def _parse_contacts_file_raw(file_bytes: bytes, filename: str, has_headers: bool
 
     # Max columns
     max_cols = max(len(r) for r in raw_rows)
+    if max_cols == 0:
+        return {'headers': [], 'data_rows': [], 'sample_rows': [], 'total_rows': 0, 'suggested_mapping': {}}
+
     normalized_rows = []
     for r in raw_rows:
         r_padded = r + [''] * (max_cols - len(r))
-        normalized_rows.append(r_padded)
+        if any(c.strip() for c in r_padded):
+            normalized_rows.append(r_padded)
+
+    if not normalized_rows:
+        return {'headers': [], 'data_rows': [], 'sample_rows': [], 'total_rows': 0, 'suggested_mapping': {}}
 
     if has_headers:
         header_idx = detect_header_row_index(normalized_rows)
-        headers = [h if h else f'Kolumna {i+1}' for i, h in enumerate(normalized_rows[header_idx])]
-        data_rows = normalized_rows[header_idx + 1:]
+        headers = [h if h.strip() else f'Kolumna {i+1}' for i, h in enumerate(normalized_rows[header_idx])]
+        raw_data_rows = normalized_rows[header_idx + 1:]
     else:
         headers = [f'Kolumna {i+1}' for i in range(max_cols)]
-        data_rows = normalized_rows
+        raw_data_rows = normalized_rows
+
+    # Filter out empty or single-cell summary footer rows
+    data_rows = []
+    for row in raw_data_rows:
+        non_empty = [c for c in row if c and c.strip()]
+        if not non_empty:
+            continue
+        if len(headers) >= 3 and len(non_empty) == 1 and not re.match(r'^\+?[0-9]{7,15}$', non_empty[0].replace(' ', '')):
+            continue
+        data_rows.append(row)
 
     sample_rows = data_rows[:5]
     suggested = guess_column_mapping(headers, sample_rows)
