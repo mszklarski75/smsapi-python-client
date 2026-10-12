@@ -36,7 +36,7 @@
         .dark .custom-scrollbar::-webkit-scrollbar-thumb { background: #475569; }
     </style>
 </head>
-<body class="h-full flex flex-col text-slate-800 dark:text-slate-100 antialiased overflow-hidden">
+<body class="min-h-screen bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 antialiased overflow-hidden flex flex-col">
 
     <!-- LOGIN OVERLAY SCREEN (Shown if not logged in - optimized without heavy backdrop blur) -->
     <div id="loginScreen" class="fixed inset-0 bg-slate-950/85 z-50 flex items-center justify-center p-4">
@@ -145,7 +145,7 @@
     <!-- Mobile Sidebar Backdrop Overlay -->
     <div id="mobileSidebarBackdrop" onclick="closeMobileSidebar()" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-30 hidden lg:hidden transition-opacity"></div>
 
-    <div class="flex flex-1 overflow-hidden relative">
+    <div class="flex flex-1 overflow-hidden relative bg-slate-50 dark:bg-slate-900">
         <!-- Sidebar Navigation (Responsive: Off-canvas drawer on mobile, docked on desktop) -->
         <aside id="mainSidebar" class="fixed inset-y-0 left-0 z-40 w-72 lg:w-64 bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 flex flex-col justify-between p-4 flex-shrink-0 overflow-y-auto custom-scrollbar transform -translate-x-full lg:translate-x-0 lg:static transition-transform duration-200 ease-in-out shadow-2xl lg:shadow-none">
             
@@ -859,7 +859,7 @@
             </section>
 
             <!-- TAB 7: SHORTURL & HLR -->
-            <section id="tab-shorturl" class="tab-content hidden max-w-7xl mx-auto w-full space-y-6">
+            <section id="tab-shorturl-hlr" class="tab-content hidden max-w-7xl mx-auto w-full space-y-6">
                 <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div>
                         <h2 class="text-xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
@@ -1738,6 +1738,8 @@
                 return;
             }
 
+            const normTabId = (tabId === 'shorturl' || tabId === 'shorturl-hlr') ? 'shorturl-hlr' : tabId;
+
             document.querySelectorAll('.tab-content').forEach(tab => tab.classList.add('hidden'));
             document.querySelectorAll('.nav-btn').forEach(btn => {
                 btn.classList.remove('bg-blue-50', 'text-blue-600', 'dark:bg-blue-900/30', 'dark:text-blue-400');
@@ -1748,9 +1750,9 @@
                 btn.classList.add('text-slate-500', 'dark:text-slate-400');
             });
 
-            const activeTab = document.getElementById(`tab-${tabId}`);
-            const activeNav = document.getElementById(`nav-${tabId}`);
-            const activeBnav = document.getElementById(`bnav-${tabId}`);
+            const activeTab = document.getElementById(`tab-${normTabId}`) || document.getElementById(`tab-${tabId}`) || document.getElementById('tab-shorturl-hlr');
+            const activeNav = document.getElementById(`nav-${normTabId}`) || document.getElementById(`nav-${tabId}`) || document.getElementById('nav-shorturl-hlr');
+            const activeBnav = document.getElementById(`bnav-${normTabId}`) || document.getElementById(`bnav-${tabId}`);
 
             if (activeTab) activeTab.classList.remove('hidden');
             if (activeNav) {
@@ -1762,16 +1764,16 @@
                 activeBnav.classList.add('text-blue-600', 'dark:text-blue-400');
             }
 
-            if (tabId === 'dashboard') { fetchBalance(); fetchStats(); fetchRecentHistory(); }
-            if (tabId === 'templates') renderTemplatesGrid(savedTemplates);
-            if (tabId === 'history') fetchHistory();
-            if (tabId === 'contacts') {
+            if (normTabId === 'dashboard') { fetchBalance(); fetchStats(); fetchRecentHistory(); }
+            if (normTabId === 'templates') renderTemplatesGrid(savedTemplates);
+            if (normTabId === 'history') fetchHistory();
+            if (normTabId === 'contacts') {
                 if (currentContactsSubTab === 'groups') fetchContactGroups();
                 else fetchContacts();
             }
-            if (tabId === 'shorturl' || tabId === 'shorturl-hlr') fetchShortUrls();
-            if (tabId === 'blacklist') fetchBlacklist();
-            if (tabId === 'settings') { fetchConfig(); fetchSenders(); fetchUsers(); }
+            if (normTabId === 'shorturl' || normTabId === 'shorturl-hlr') fetchShortUrls();
+            if (normTabId === 'blacklist') fetchBlacklist();
+            if (normTabId === 'settings') { fetchConfig(); fetchSenders(); fetchUsers(); }
         }
 
         // Theme Toggle
