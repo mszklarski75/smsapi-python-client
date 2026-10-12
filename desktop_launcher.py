@@ -18,6 +18,20 @@ CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 if CURRENT_DIR not in sys.path:
     sys.path.insert(0, CURRENT_DIR)
 
+
+def ensure_dependencies():
+    for pkg in ['xlrd', 'openpyxl']:
+        try:
+            __import__(pkg)
+        except ImportError:
+            try:
+                subprocess.call([sys.executable, '-m', 'pip', 'install', pkg, '--quiet'], shell=(sys.platform == 'win32'))
+            except Exception:
+                pass
+
+
+ensure_dependencies()
+
 from app import app
 
 FIXED_PORT = 5000

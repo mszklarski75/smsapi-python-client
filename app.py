@@ -1437,52 +1437,117 @@ def detect_header_row_index(raw_rows: List[List[str]]) -> int:
     return best_idx
 
 
+def get_xlrd():
+    try:
+        import xlrd
+        return xlrd
+    except ImportError:
+        try:
+            import subprocess
+            subprocess.check_call([sys.executable, "-m", "pip", "install", "xlrd>=2.0.1", "--quiet"])
+            import xlrd
+            return xlrd
+        except Exception:
+            return None
+
+
+def get_openpyxl():
+    try:
+        import openpyxl
+        return openpyxl
+    except ImportError:
+        try:
+            import subprocess
+            subprocess.check_call([sys.executable, "-m", "pip", "install", "openpyxl>=3.0.0", "--quiet"])
+            import openpyxl
+            return openpyxl
+        except Exception:
+            return None
+
+
 def extract_raw_rows_from_file(file_bytes: bytes, filename: str) -> List[List[str]]:
     # 1. Check binary signatures (OpenXML .xlsx / ZIP)
     if file_bytes.startswith(b'PK\x03\x04'):
-        try:
-            import openpyxl
-            wb = openpyxl.load_workbook(io.BytesIO(file_bytes), data_only=True)
-            best_sheet_rows = []
-            for ws in wb.worksheets:
-                sheet_rows = []
-                for row in ws.iter_rows(values_only=True):
-                    if row is None:
-                        continue
-                    str_row = [str(c).strip() if c is not None else '' for c in row]
-                    if any(str_row):
-                        sheet_rows.append(str_row)
-                if len(sheet_rows) > len(best_sheet_rows):
-                    best_sheet_rows = sheet_rows
-            if best_sheet_rows:
-                return best_sheet_rows
-        except Exception:
-            pass
+        openpyxl_mod = get_openpyxl()
+        if openpyxl_mod:
+            try:
+                wb = openpyxl_mod.load_workbook(io.BytesIO(file_bytes), data_only=True)
+                best_sheet_rows = []
+                for ws in wb.worksheets:
+                    sheet_rows = []
+                    for row in ws.iter_rows(values_only=True):
+                        if row is None:
+                            continue
+                        str_row = []
+                        for c in row:
+                            if c is None:
+                                str_row.append('')
+                            elif isinstance(c, (datetime.date, datetime.datetime)):
+                                str_row.append(c.strftime('%Y-%m-%d'))
+                            elif isinstance(c, float) and c.is_integer():
+                                str_row.append(str(int(c)))
+                            else:
+                                str_row.append(str(c).strip())
+                        if any(str_row):
+                            sheet_rows.append(str_row)
+                    if len(sheet_rows) > len(best_sheet_rows):
+                        best_sheet_rows = sheet_rows
+                if best_sheet_rows:
+                    return best_sheet_rows
+            except Exception:
+                pass
 
-    # 2. Check binary signatures (OLE2 Compound File / BIFF8 .xls)
-    if (file_bytes.startswith(b'\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1') or
-            file_bytes.startswith(b'\x09\x00') or
-            file_bytes.startswith(b'\x09\x02') or
-            file_bytes.startswith(b'\x09\x04') or
-            file_bytes.startswith(b'\x09\x08')):
-        try:
-            import xlrd
-            wb = xlrd.open_workbook(file_contents=file_bytes)
-            best_sheet_rows = []
-            for sheet_idx in range(wb.nsheets):
-                ws = wb.sheet_by_index(sheet_idx)
-                sheet_rows = []
-                for rx in range(ws.nrows):
-                    row = [str(ws.cell_value(rx, cx)).strip() for cx in range(ws.ncols)]
-                    row = [re.sub(r'\.0$', '', c) if re.match(r'^\d+\.0$', c) else c for c in row]
-                    if any(row):
-                        sheet_rows.append(row)
-                if len(sheet_rows) > len(best_sheet_rows):
-                    best_sheet_rows = sheet_rows
-            if best_sheet_rows:
-                return best_sheet_rows
-        except Exception:
-            pass
+    # 2. Check binary signatures (OLE2 Compound File / BIFF8 / Excel 97-2003 .xls)
+    is_binary_xls = (
+        file_bytes.startswith(b'\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1') or
+        file_bytes.startswith(b'\x09\x00') or
+        file_bytes.startswith(b'\x09\x02') or
+        file_bytes.startswith(b'\x09\x04') or
+        file_bytes.startswith(b'\x09\x08')
+    )
+
+    if is_binary_xls:
+        xlrd_mod = get_xlrd()
+        if xlrd_mod:
+            try:
+                wb = xlrd_mod.open_workbook(file_contents=file_bytes)
+                best_sheet_rows = []
+                for sheet_idx in range(wb.nsheets):
+                    ws = wb.sheet_by_index(sheet_idx)
+                    sheet_rows = []
+                    for rx in range(ws.nrows):
+                        row = []
+                        for cx in range(ws.ncols):
+                            c_type = ws.cell_type(rx, cx)
+                            c_val = ws.cell_value(rx, cx)
+                            if c_type == xlrd_mod.XL_CELL_DATE:
+                                try:
+                                    dt = xlrd_mod.xldate_as_datetime(c_val, wb.datemode)
+                                    val_str = dt.strftime('%Y-%m-%d')
+                                except Exception:
+                                    val_str = str(c_val)
+                            elif c_type == xlrd_mod.XL_CELL_NUMBER:
+                                if c_val == int(c_val):
+                                    val_str = str(int(c_val))
+                                else:
+                                    val_str = str(c_val)
+                            elif c_type == xlrd_mod.XL_CELL_BOOLEAN:
+                                val_str = 'Prawda' if c_val else 'Fałsz'
+                            elif c_val is None:
+                                val_str = ''
+                            else:
+                                val_str = str(c_val).strip()
+                            row.append(val_str)
+                        if any(row):
+                            sheet_rows.append(row)
+                    if len(sheet_rows) > len(best_sheet_rows):
+                        best_sheet_rows = sheet_rows
+                if best_sheet_rows:
+                    return best_sheet_rows
+            except Exception as e:
+                print("xlrd error:", e)
+        else:
+            raise ValueError("Do odczytu plików Excel .xls wymagana jest biblioteka 'xlrd'. Zainstaluj ją wpisując: pip install xlrd")
 
     # 3. Decode as text (handles UTF-16, UTF-8, CP1250, MHTML, HTML, XML)
     text_content = decode_text_bytes(file_bytes)
@@ -1510,28 +1575,30 @@ def extract_raw_rows_from_file(file_bytes: bytes, filename: str) -> List[List[st
         if rows:
             return rows
 
-    # 4. Fallback: try xlrd
-    try:
-        import xlrd
-        wb = xlrd.open_workbook(file_contents=file_bytes)
-        best_sheet_rows = []
-        for sheet_idx in range(wb.nsheets):
-            ws = wb.sheet_by_index(sheet_idx)
-            sheet_rows = []
-            for rx in range(ws.nrows):
-                row = [str(ws.cell_value(rx, cx)).strip() for cx in range(ws.ncols)]
-                row = [re.sub(r'\.0$', '', c) if re.match(r'^\d+\.0$', c) else c for c in row]
-                if any(row):
-                    sheet_rows.append(row)
-            if len(sheet_rows) > len(best_sheet_rows):
-                best_sheet_rows = sheet_rows
-        if best_sheet_rows:
-            return best_sheet_rows
-    except Exception:
-        pass
+    # 4. Fallback: try xlrd again if not already tried
+    if not is_binary_xls:
+        xlrd_mod = get_xlrd()
+        if xlrd_mod:
+            try:
+                wb = xlrd_mod.open_workbook(file_contents=file_bytes)
+                best_sheet_rows = []
+                for sheet_idx in range(wb.nsheets):
+                    ws = wb.sheet_by_index(sheet_idx)
+                    sheet_rows = []
+                    for rx in range(ws.nrows):
+                        row = [str(ws.cell_value(rx, cx)).strip() for cx in range(ws.ncols)]
+                        row = [re.sub(r'\.0$', '', c) if re.match(r'^\d+\.0$', c) else c for c in row]
+                        if any(row):
+                            sheet_rows.append(row)
+                    if len(sheet_rows) > len(best_sheet_rows):
+                        best_sheet_rows = sheet_rows
+                if best_sheet_rows:
+                    return best_sheet_rows
+            except Exception:
+                pass
 
-    # 5. Fallback: Delimited plain text / CSV
-    if text_content:
+    # 5. Fallback: Delimited plain text / CSV (only for actual text files, not binary!)
+    if text_content and not is_binary_xls:
         rows = parse_delimited_text_robust(text_content)
         if rows:
             return rows
@@ -1552,12 +1619,12 @@ def guess_column_mapping(headers: List[str], sample_rows: List[List[str]]) -> Di
 
     patterns = [
         ('last_name', [r'^nazwisko$', r'nazwisko(?!\s*i\s*imi)', r'last_?name', r'lname', r'surname']),
-        ('first_name', [r'imi[eę]', r'first_?name', r'fname', r'first', r'imiona', r'nazwisko\s*i\s*imi', r'pracownik', r'kontrahent', r'klient']),
-        ('phone', [r'tel', r'phone', r'kom[oó]rk', r'msisdn', r'numer', r'odbiorca', r'kontakt', r'mobile', r'telefon']),
+        ('first_name', [r'^imi[eę]$', r'imi[eę]', r'first_?name', r'fname', r'first', r'imiona', r'nazwisko\s*i\s*imi', r'pracownik', r'kontrahent', r'klient']),
+        ('phone', [r'telefon\s*sms', r'kom[oó]rk', r'tel', r'phone', r'msisdn', r'numer', r'odbiorca', r'kontakt', r'mobile', r'telefon']),
         ('email', [r'e-?mail', r'mail', r'poczta']),
-        ('city', [r'miasto', r'city', r'miejscowo[sś][cć]']),
+        ('city', [r'miasto', r'city', r'miejscowo[sś][cć]', r'wydzia[lł]', r'dzia[lł]']),
         ('gender', [r'p[lł]e[cć]', r'gender', r'sex']),
-        ('birthday', [r'urodzin', r'birthday', r'data_ur', r'data_urodzenia', r'bday'])
+        ('birthday', [r'urodzen', r'urodzin', r'birthday', r'data\s*ur', r'bday'])
     ]
 
     used_headers = set()
