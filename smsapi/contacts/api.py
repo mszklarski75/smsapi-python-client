@@ -21,7 +21,7 @@ class Contacts(Api):
         path='contacts',
         mapping=(ContactModel, ModelCollection),
         exception_class=ContactsException,
-        accept_parameters=contact_params + list_params + ['q']
+        accept_parameters=contact_params + list_params + ['q', 'group_id']
     )
 
     get_contact = bind_api_endpoint(

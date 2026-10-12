@@ -746,78 +746,117 @@
                 <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div>
                         <h2 class="text-xl font-bold text-slate-800 dark:text-white">Kontakty i Grupy SMSAPI</h2>
-                        <p class="text-xs text-slate-500 mt-0.5">Zarządzaj swoją książką adresową kontrahentów pobieraną z konta SMSAPI.</p>
+                        <p class="text-xs text-slate-500 mt-0.5">Zarządzaj swoją książką adresową kontrahentów oraz grupami odbiorców w SMSAPI.</p>
                     </div>
-                    <div class="flex items-center gap-2">
-                        <button onclick="fetchContacts(contactsCurrentPage)" class="px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-xl text-xs font-semibold hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-1.5 transition-colors">
-                            <i class="fa-solid fa-arrows-rotate"></i> Odśwież listę
+
+                    <!-- Sub-tab switch (Kontakty vs Grupy) -->
+                    <div class="flex items-center gap-1.5 p-1 bg-slate-200/80 dark:bg-slate-700/80 rounded-2xl w-max self-start sm:self-auto">
+                        <button onclick="switchContactsSubTab('contacts')" id="subtab-btn-contacts" class="px-4 py-2 rounded-xl font-bold text-xs transition-all bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400 shadow-sm flex items-center gap-1.5">
+                            <i class="fa-solid fa-address-book"></i> Baza Kontaktów
                         </button>
-                        <button onclick="openAddContactModal()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md shadow-blue-500/20 transition-all">
-                            <i class="fa-solid fa-user-plus"></i> Dodaj kontakt
+                        <button onclick="switchContactsSubTab('groups')" id="subtab-btn-groups" class="px-4 py-2 rounded-xl font-bold text-xs transition-all text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white flex items-center gap-1.5">
+                            <i class="fa-solid fa-people-group"></i> Grupy Odbiorców
                         </button>
                     </div>
                 </div>
 
-                <div class="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-4">
-                    <!-- Filters and Limit Selection -->
-                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                        <div class="relative flex-1 max-w-md">
-                            <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-2.5 text-slate-400 text-xs"></i>
-                            <input type="text" id="contactSearchInput" placeholder="Szukaj kontrahenta (nazwisko, numer, email, miasto)..." oninput="debounce(handleContactSearch, 300)()" class="w-full pl-9 pr-8 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700 outline-none focus:ring-2 focus:ring-blue-500">
-                            <button onclick="clearContactSearch()" class="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-xs" title="Wyczyść szukanie">
-                                <i class="fa-solid fa-xmark"></i>
-                            </button>
-                        </div>
-
-                        <div class="flex items-center gap-4">
-                            <!-- Items per page selector: 25, 100, 150, 300 -->
-                            <div class="flex items-center gap-2 bg-slate-50 dark:bg-slate-700/50 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700">
-                                <label for="contactsPerPageSelect" class="text-xs font-semibold text-slate-600 dark:text-slate-300 whitespace-nowrap">
-                                    <i class="fa-solid fa-list-ol mr-1 text-blue-500"></i> Na stronie:
-                                </label>
-                                <select id="contactsPerPageSelect" onchange="changeContactsPerPage(this.value)" class="bg-white dark:bg-slate-800 px-2 py-1 text-xs font-bold text-slate-800 dark:text-slate-100 rounded-lg border border-slate-300 dark:border-slate-600 outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer">
-                                    <option value="25">25</option>
-                                    <option value="100" selected>100</option>
-                                    <option value="150">150</option>
-                                    <option value="300">300</option>
-                                </select>
+                <!-- SUB-VIEW 1: CONTACTS LIST -->
+                <div id="contactsViewSection" class="space-y-4">
+                    <div class="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-4">
+                        <!-- Filters and Limit Selection -->
+                        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            <div class="relative flex-1 max-w-md">
+                                <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-2.5 text-slate-400 text-xs"></i>
+                                <input type="text" id="contactSearchInput" placeholder="Szukaj kontrahenta (nazwisko, numer, email, miasto)..." oninput="debounce(handleContactSearch, 300)()" class="w-full pl-9 pr-8 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700 outline-none focus:ring-2 focus:ring-blue-500">
+                                <button onclick="clearContactSearch()" class="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-xs" title="Wyczyść szukanie">
+                                    <i class="fa-solid fa-xmark"></i>
+                                </button>
                             </div>
 
-                            <span id="contactsCountBadge" class="text-xs font-bold px-3 py-1.5 rounded-xl bg-blue-50 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 border border-blue-200 dark:border-blue-800/40 whitespace-nowrap">
-                                0 kontaktów
-                            </span>
+                            <div class="flex items-center gap-2 sm:gap-4 flex-wrap">
+                                <!-- Items per page selector: 25, 100, 150, 300 -->
+                                <div class="flex items-center gap-2 bg-slate-50 dark:bg-slate-700/50 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700">
+                                    <label for="contactsPerPageSelect" class="text-xs font-semibold text-slate-600 dark:text-slate-300 whitespace-nowrap">
+                                        <i class="fa-solid fa-list-ol mr-1 text-blue-500"></i> Na stronie:
+                                    </label>
+                                    <select id="contactsPerPageSelect" onchange="changeContactsPerPage(this.value)" class="bg-white dark:bg-slate-800 px-2 py-1 text-xs font-bold text-slate-800 dark:text-slate-100 rounded-lg border border-slate-300 dark:border-slate-600 outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer">
+                                        <option value="25">25</option>
+                                        <option value="100" selected>100</option>
+                                        <option value="150">150</option>
+                                        <option value="300">300</option>
+                                    </select>
+                                </div>
+
+                                <span id="contactsCountBadge" class="text-xs font-bold px-3 py-1.5 rounded-xl bg-blue-50 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 border border-blue-200 dark:border-blue-800/40 whitespace-nowrap">
+                                    0 kontaktów
+                                </span>
+
+                                <button onclick="fetchContacts(contactsCurrentPage)" class="px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-xl text-xs font-semibold hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-1.5 transition-colors">
+                                    <i class="fa-solid fa-arrows-rotate"></i> Odśwież
+                                </button>
+                                <button onclick="openAddContactModal()" class="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md shadow-blue-500/20 transition-all">
+                                    <i class="fa-solid fa-user-plus"></i> Dodaj kontakt
+                                </button>
+                            </div>
                         </div>
+
+                        <!-- Contacts Table -->
+                        <div class="overflow-x-auto rounded-xl border border-slate-100 dark:border-slate-700">
+                            <table class="w-full text-left text-xs">
+                                <thead class="bg-slate-50 dark:bg-slate-700/60 uppercase font-bold text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700">
+                                    <tr>
+                                        <th class="py-3 px-3.5">Kontrahent / Nazwisko</th>
+                                        <th class="py-3 px-3.5">Numer telefonu</th>
+                                        <th class="py-3 px-3.5">Adres E-mail</th>
+                                        <th class="py-3 px-3.5">Miasto</th>
+                                        <th class="py-3 px-3.5 text-right">Akcje</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="contactsTableBody" class="divide-y divide-slate-100 dark:divide-slate-700/50 font-medium">
+                                    <tr>
+                                        <td colspan="5" class="py-8 text-center text-slate-400">Kliknij "Odśwież listę", aby załadować kontakty...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- Pagination Footer Bar -->
+                        <div id="contactsPaginationContainer" class="flex flex-col sm:flex-row items-center justify-between gap-4 pt-3 text-xs">
+                            <div id="contactsPaginationInfo" class="text-slate-500 dark:text-slate-400 font-medium">
+                                Ładowanie danych stron...
+                            </div>
+                            <div id="contactsPaginationButtons" class="flex items-center gap-1.5 flex-wrap">
+                                <!-- Dynamic pagination pills -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SUB-VIEW 2: GROUPS CATALOG & MANAGEMENT -->
+                <div id="groupsViewSection" class="hidden space-y-6">
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <button onclick="openCreateGroupModal()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md shadow-blue-500/20 transition-all">
+                                <i class="fa-solid fa-plus"></i> Nowa grupa
+                            </button>
+                            <button onclick="openImportContactsModal()" class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md shadow-emerald-500/20 transition-all">
+                                <i class="fa-solid fa-file-csv"></i> Importuj CSV/Excel do grupy
+                            </button>
+                        </div>
+                        <button onclick="fetchContactGroups()" class="px-3.5 py-2 border border-slate-300 dark:border-slate-600 rounded-xl text-xs font-semibold hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-1.5 transition-colors self-start sm:self-auto">
+                            <i class="fa-solid fa-arrows-rotate"></i> Odśwież grupy
+                        </button>
                     </div>
 
-                    <!-- Contacts Table -->
-                    <div class="overflow-x-auto rounded-xl border border-slate-100 dark:border-slate-700">
-                        <table class="w-full text-left text-xs">
-                            <thead class="bg-slate-50 dark:bg-slate-700/60 uppercase font-bold text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700">
-                                <tr>
-                                    <th class="py-3 px-3.5">Kontrahent / Nazwisko</th>
-                                    <th class="py-3 px-3.5">Numer telefonu</th>
-                                    <th class="py-3 px-3.5">Adres E-mail</th>
-                                    <th class="py-3 px-3.5">Miasto</th>
-                                    <th class="py-3 px-3.5 text-right">Akcje</th>
-                                </tr>
-                            </thead>
-                            <tbody id="contactsTableBody" class="divide-y divide-slate-100 dark:divide-slate-700/50 font-medium">
-                                <tr>
-                                    <td colspan="5" class="py-8 text-center text-slate-400">Kliknij "Odśwież listę", aby załadować kontakty...</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-
-                    <!-- Pagination Footer Bar -->
-                    <div id="contactsPaginationContainer" class="flex flex-col sm:flex-row items-center justify-between gap-4 pt-3 text-xs">
-                        <div id="contactsPaginationInfo" class="text-slate-500 dark:text-slate-400 font-medium">
-                            Ładowanie danych stron...
-                        </div>
-                        <div id="contactsPaginationButtons" class="flex items-center gap-1.5 flex-wrap">
-                            <!-- Dynamic pagination pills -->
+                    <!-- Groups Grid -->
+                    <div id="groupsGridContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        <div class="col-span-full py-12 text-center text-slate-400">
+                            <i class="fa-solid fa-spinner fa-spin text-xl text-blue-500 mb-2"></i>
+                            <div>Ładowanie grup odbiorców z SMSAPI...</div>
                         </div>
                     </div>
+                </div>
+            </section>
                 </div>
             </section>
 
@@ -1288,6 +1327,172 @@
         </div>
     </div>
 
+    <!-- Create Group Modal Dialog -->
+    <div id="createGroupModal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-700 space-y-4">
+            <div class="flex items-center justify-between">
+                <h3 class="font-bold text-base flex items-center gap-2">
+                    <i class="fa-solid fa-people-group text-blue-500"></i> Utwórz nową grupę SMSAPI
+                </h3>
+                <button onclick="closeCreateGroupModal()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <form onsubmit="handleCreateGroupSubmit(event)" class="space-y-3.5 text-xs">
+                <div>
+                    <label class="block font-semibold mb-1">Nazwa grupy *</label>
+                    <input type="text" id="modalGroupName" required placeholder="np. Klienci VIP, Baza Newsletter 2026" class="w-full px-3.5 py-2.5 text-sm rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700 outline-none">
+                </div>
+                <div>
+                    <label class="block font-semibold mb-1">Opis grupy (opcjonalnie)</label>
+                    <textarea id="modalGroupDescription" rows="2" placeholder="Krótki opis przeznaczenia grupy..." class="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700 outline-none resize-none"></textarea>
+                </div>
+                <div class="flex gap-2 pt-2">
+                    <button type="button" onclick="closeCreateGroupModal()" class="flex-1 py-2.5 border rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700 font-semibold">Anuluj</button>
+                    <button type="submit" class="flex-1 py-2.5 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 shadow transition-colors">Utwórz grupę</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Import Contacts from CSV/Excel to Group Modal Dialog -->
+    <div id="importContactsModal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-700 space-y-4">
+            <div class="flex items-center justify-between">
+                <h3 class="font-bold text-base flex items-center gap-2">
+                    <i class="fa-solid fa-file-csv text-emerald-500"></i> Import kontaktów z pliku CSV/Excel
+                </h3>
+                <button onclick="closeImportContactsModal()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <form onsubmit="handleImportContactsSubmit(event)" class="space-y-4 text-xs">
+                <div>
+                    <label class="block font-semibold mb-1.5 text-slate-700 dark:text-slate-200">1. Wybierz plik z kontaktami (.csv, .xlsx, .txt)</label>
+                    <input type="file" id="importContactsFileInput" accept=".csv,.xlsx,.xls,.txt" required class="w-full text-xs text-slate-500 file:mr-3 file:py-2 file:px-3.5 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100 border border-slate-300 dark:border-slate-600 rounded-xl p-1 dark:bg-slate-700 cursor-pointer">
+                    <p class="text-[11px] text-slate-400 mt-1">Plik powinien zawierać kolumnę z numerem telefonu (oraz opcjonalnie imię, nazwisko, email, miasto).</p>
+                </div>
+
+                <div>
+                    <label class="block font-semibold mb-1 text-slate-700 dark:text-slate-200">2. Przypisz zaimportowane kontakty do grupy:</label>
+                    <select id="importTargetGroupSelect" onchange="toggleNewGroupInputInImport(this.value)" class="w-full px-3.5 py-2.5 text-xs rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700 outline-none font-medium">
+                        <option value="">-- Bez przypisania do grupy (Tylko do bazy ogólnej) --</option>
+                        <option value="__NEW__">+ Utwórz nową grupę podczas importu...</option>
+                    </select>
+                </div>
+
+                <div id="newGroupNameImportBox" class="hidden">
+                    <label class="block font-semibold mb-1 text-slate-700 dark:text-slate-200">Nazwa nowej grupy:</label>
+                    <input type="text" id="importNewGroupNameInput" placeholder="Wpisz nazwę nowej grupy..." class="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700 outline-none">
+                </div>
+
+                <div class="p-3 rounded-xl bg-slate-50 dark:bg-slate-700/40 border border-slate-200 dark:border-slate-600 text-[11px] text-slate-500 space-y-1">
+                    <div class="font-bold text-slate-700 dark:text-slate-200">ℹ️ Automatyczne dopasowanie formatu:</div>
+                    <div>Numery 9-cyfrowe (PL) zostaną automatycznie uzupełnione o prefiks kraju <code>48</code>. Jeśli kontakt już istnieje w SMSAPI, zostanie automatycznie dopisany do wybranej grupy.</div>
+                </div>
+
+                <div class="flex gap-2 pt-1">
+                    <button type="button" onclick="closeImportContactsModal()" class="flex-1 py-2.5 border rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700 font-semibold">Anuluj</button>
+                    <button type="submit" id="btnImportContactsSubmit" class="flex-1 py-2.5 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 shadow transition-colors flex items-center justify-center gap-1.5">
+                        <i class="fa-solid fa-cloud-arrow-up"></i> Rozpocznij import
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Dual-Listbox Modal: Group Members Transfer -->
+    <div id="groupMembersModal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4">
+        <div class="bg-white dark:bg-slate-800 rounded-2xl max-w-4xl w-full p-4 sm:p-6 shadow-2xl border border-slate-200 dark:border-slate-700 space-y-4 max-h-[92vh] flex flex-col">
+            <div class="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-700">
+                <div>
+                    <h3 class="font-bold text-base text-slate-800 dark:text-white flex items-center gap-2">
+                        <i class="fa-solid fa-people-group text-blue-500"></i>
+                        <span>Zarządzanie członkami grupy:</span>
+                        <span id="transferGroupNameBadge" class="text-blue-600 font-extrabold">--</span>
+                    </h3>
+                    <p class="text-xs text-slate-400 mt-0.5">Zaznacz kontakty i użyj przycisków strzałek, aby przenieść je do lub z grupy.</p>
+                </div>
+                <button onclick="closeGroupMembersModal()" class="text-slate-400 hover:text-slate-600 text-lg p-1"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+
+            <!-- Dual Columns Container -->
+            <div class="grid grid-cols-1 md:grid-cols-11 gap-3 flex-1 overflow-hidden">
+                <!-- Left Column: Available Contacts (Not in Group) -->
+                <div class="md:col-span-5 flex flex-col border border-slate-200 dark:border-slate-700 rounded-xl p-3 bg-slate-50 dark:bg-slate-700/30">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="font-bold text-xs text-slate-700 dark:text-slate-200">Dostępne kontakty (Poza grupą)</span>
+                        <span id="leftCountBadge" class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-200 dark:bg-slate-600 text-slate-700 dark:text-slate-200">0</span>
+                    </div>
+                    <div class="relative mb-2">
+                        <i class="fa-solid fa-magnifying-glass absolute left-2.5 top-2 text-slate-400 text-xs"></i>
+                        <input type="text" id="leftFilterInput" placeholder="Szukaj w dostępnych..." oninput="filterLeftContacts()" class="w-full pl-8 pr-2 py-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-800 outline-none">
+                    </div>
+                    <div class="flex items-center justify-between pb-1.5 text-[11px] text-slate-500 border-b border-slate-200 dark:border-slate-600 mb-1">
+                        <label class="flex items-center gap-1.5 cursor-pointer font-medium">
+                            <input type="checkbox" id="selectAllLeft" onchange="toggleSelectAllLeft(this.checked)" class="rounded text-blue-600">
+                            <span>Zaznacz wszystkie</span>
+                        </label>
+                        <span id="leftSelectedCount" class="font-bold text-blue-600">Wybrano: 0</span>
+                    </div>
+                    <div id="leftContactsList" class="flex-1 overflow-y-auto max-h-64 sm:max-h-80 space-y-1 custom-scrollbar pr-1">
+                        <!-- Left Checkbox Items -->
+                    </div>
+                </div>
+
+                <!-- Middle Column: Action Buttons -->
+                <div class="md:col-span-1 flex flex-row md:flex-col items-center justify-center gap-2 py-2">
+                    <button onclick="transferSelectedToRight()" title="Dodaj zaznaczone do grupy" class="p-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow transition-all flex items-center justify-center gap-1 w-full sm:w-auto">
+                        <span class="md:hidden text-xs">Dodaj &rarr;</span>
+                        <i class="fa-solid fa-chevron-right hidden md:inline"></i>
+                    </button>
+                    <button onclick="transferAllToRight()" title="Dodaj wszystkich widocznych do grupy" class="p-2.5 rounded-xl bg-blue-100 hover:bg-blue-200 text-blue-700 dark:bg-blue-900/40 dark:hover:bg-blue-900/70 dark:text-blue-300 font-bold text-xs transition-all flex items-center justify-center gap-1 w-full sm:w-auto">
+                        <span class="md:hidden text-xs">Wszystkie &rarr;&rarr;</span>
+                        <i class="fa-solid fa-angles-right hidden md:inline"></i>
+                    </button>
+                    <button onclick="transferSelectedToLeft()" title="Usuń zaznaczone z grupy" class="p-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow transition-all flex items-center justify-center gap-1 w-full sm:w-auto">
+                        <span class="md:hidden text-xs">&larr; Usuń</span>
+                        <i class="fa-solid fa-chevron-left hidden md:inline"></i>
+                    </button>
+                    <button onclick="transferAllToLeft()" title="Usuń wszystkich widocznych z grupy" class="p-2.5 rounded-xl bg-rose-100 hover:bg-rose-200 text-rose-700 dark:bg-rose-900/40 dark:hover:bg-rose-900/70 dark:text-rose-300 font-bold text-xs transition-all flex items-center justify-center gap-1 w-full sm:w-auto">
+                        <span class="md:hidden text-xs">&larr;&larr; Wyczyść</span>
+                        <i class="fa-solid fa-angles-left hidden md:inline"></i>
+                    </button>
+                </div>
+
+                <!-- Right Column: Group Members (In Group) -->
+                <div class="md:col-span-5 flex flex-col border border-blue-200 dark:border-blue-900/50 rounded-xl p-3 bg-blue-50/40 dark:bg-blue-950/20">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="font-bold text-xs text-blue-800 dark:text-blue-300 flex items-center gap-1">
+                            <i class="fa-solid fa-user-check text-blue-500"></i> Członkowie w grupie
+                        </span>
+                        <span id="rightCountBadge" class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-200 dark:bg-blue-800 text-blue-800 dark:text-blue-200">0</span>
+                    </div>
+                    <div class="relative mb-2">
+                        <i class="fa-solid fa-magnifying-glass absolute left-2.5 top-2 text-slate-400 text-xs"></i>
+                        <input type="text" id="rightFilterInput" placeholder="Szukaj w członkach..." oninput="filterRightContacts()" class="w-full pl-8 pr-2 py-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-800 outline-none">
+                    </div>
+                    <div class="flex items-center justify-between pb-1.5 text-[11px] text-slate-500 border-b border-slate-200 dark:border-slate-600 mb-1">
+                        <label class="flex items-center gap-1.5 cursor-pointer font-medium">
+                            <input type="checkbox" id="selectAllRight" onchange="toggleSelectAllRight(this.checked)" class="rounded text-rose-600">
+                            <span>Zaznacz wszystkie</span>
+                        </label>
+                        <span id="rightSelectedCount" class="font-bold text-rose-600">Wybrano: 0</span>
+                    </div>
+                    <div id="rightContactsList" class="flex-1 overflow-y-auto max-h-64 sm:max-h-80 space-y-1 custom-scrollbar pr-1">
+                        <!-- Right Checkbox Items -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Modal Footer -->
+            <div class="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-slate-700">
+                <div id="transferStatusInfo" class="text-xs text-slate-500">
+                    Wprowadzone zmiany są natychmiast zapisywane w SMSAPI.
+                </div>
+                <button onclick="closeGroupMembersModal()" class="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs transition-colors">
+                    Zakończ edycję
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Template Create/Edit Modal Dialog -->
     <div id="templateModal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
         <div class="bg-white dark:bg-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-700 space-y-4">
@@ -1442,7 +1647,10 @@
             if (tabId === 'dashboard') { fetchBalance(); fetchStats(); fetchRecentHistory(); }
             if (tabId === 'templates') renderTemplatesGrid(savedTemplates);
             if (tabId === 'history') fetchHistory();
-            if (tabId === 'contacts') fetchContacts();
+            if (tabId === 'contacts') {
+                if (currentContactsSubTab === 'groups') fetchContactGroups();
+                else fetchContacts();
+            }
             if (tabId === 'shorturl-hlr') fetchShortUrls();
             if (tabId === 'blacklist') fetchBlacklist();
             if (tabId === 'settings') { fetchConfig(); fetchSenders(); fetchUsers(); }
@@ -2705,6 +2913,645 @@
                 const data = await res.json();
                 if (data.success) fetchContacts();
             } catch (e) { console.error(e); }
+        }
+
+        // ==========================================
+        // Contacts Sub-Tabs & Groups Management
+        // ==========================================
+        let currentContactsSubTab = 'contacts';
+        let cachedContactGroups = [];
+
+        function switchContactsSubTab(subtab) {
+            currentContactsSubTab = subtab;
+            const contactsView = document.getElementById('contactsViewSection');
+            const groupsView = document.getElementById('groupsViewSection');
+            const btnContacts = document.getElementById('subtab-btn-contacts');
+            const btnGroups = document.getElementById('subtab-btn-groups');
+
+            if (subtab === 'groups') {
+                if (contactsView) contactsView.classList.add('hidden');
+                if (groupsView) groupsView.classList.remove('hidden');
+
+                if (btnContacts) {
+                    btnContacts.className = 'px-4 py-2 rounded-xl font-bold text-xs transition-all text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white flex items-center gap-1.5';
+                }
+                if (btnGroups) {
+                    btnGroups.className = 'px-4 py-2 rounded-xl font-bold text-xs transition-all bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400 shadow-sm flex items-center gap-1.5';
+                }
+                fetchContactGroups();
+            } else {
+                if (groupsView) groupsView.classList.add('hidden');
+                if (contactsView) contactsView.classList.remove('hidden');
+
+                if (btnContacts) {
+                    btnContacts.className = 'px-4 py-2 rounded-xl font-bold text-xs transition-all bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400 shadow-sm flex items-center gap-1.5';
+                }
+                if (btnGroups) {
+                    btnGroups.className = 'px-4 py-2 rounded-xl font-bold text-xs transition-all text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white flex items-center gap-1.5';
+                }
+                fetchContacts(contactsCurrentPage);
+            }
+        }
+
+        async function fetchContactGroups() {
+            const container = document.getElementById('groupsGridContainer');
+            if (container) {
+                container.innerHTML = `
+                    <div class="col-span-full py-12 text-center text-slate-400">
+                        <i class="fa-solid fa-spinner fa-spin text-xl text-blue-500 mb-2"></i>
+                        <div>Wczytywanie grup z SMSAPI...</div>
+                    </div>
+                `;
+            }
+
+            try {
+                const res = await fetch('/api/contacts/groups');
+                const data = await res.json();
+                cachedContactGroups = data.groups || [];
+
+                // Populate import modal dropdown
+                const select = document.getElementById('importTargetGroupSelect');
+                if (select) {
+                    let opts = `<option value="">-- Bez przypisania do grupy (Tylko do bazy ogólnej) --</option>`;
+                    opts += `<option value="__NEW__">+ Utwórz nową grupę podczas importu...</option>`;
+                    cachedContactGroups.forEach(g => {
+                        opts += `<option value="${g.id}">👥 ${g.name} (${g.contacts_count || 0} członków)</option>`;
+                    });
+                    select.innerHTML = opts;
+                }
+
+                if (!container) return;
+
+                if (cachedContactGroups.length === 0) {
+                    container.innerHTML = `
+                        <div class="col-span-full py-12 text-center bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-8">
+                            <div class="w-12 h-12 mx-auto rounded-2xl bg-blue-50 dark:bg-blue-900/30 text-blue-600 flex items-center justify-center text-xl mb-3">
+                                <i class="fa-solid fa-people-group"></i>
+                            </div>
+                            <h3 class="font-bold text-slate-800 dark:text-white text-base">Brak grup kontaktów</h3>
+                            <p class="text-xs text-slate-400 max-w-sm mx-auto mt-1 mb-4">Utwórz swoją pierwszą grupę lub zaimportuj kontakty z pliku CSV/Excel, aby łatwo wysyłać wiadomości do segmentów klientów.</p>
+                            <button onclick="openCreateGroupModal()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all shadow">
+                                + Utwórz pierwszą grupę
+                            </button>
+                        </div>
+                    `;
+                    return;
+                }
+
+                container.innerHTML = cachedContactGroups.map(g => `
+                    <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-5 shadow-sm flex flex-col justify-between hover:border-blue-300 dark:hover:border-blue-700 transition-all">
+                        <div>
+                            <div class="flex items-start justify-between gap-3 mb-2">
+                                <div class="flex items-center gap-2.5">
+                                    <div class="w-10 h-10 rounded-xl bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300 flex items-center justify-center text-lg font-bold shrink-0">
+                                        <i class="fa-solid fa-people-group"></i>
+                                    </div>
+                                    <div>
+                                        <h3 class="font-bold text-slate-800 dark:text-white text-sm leading-tight">${g.name}</h3>
+                                        <span class="text-[11px] text-slate-400">ID: ${g.id}</span>
+                                    </div>
+                                </div>
+                                <span class="px-2.5 py-1 rounded-full bg-blue-50 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 font-extrabold text-xs whitespace-nowrap border border-blue-200 dark:border-blue-800/40">
+                                    ${g.contacts_count || 0} członków
+                                </span>
+                            </div>
+                            <p class="text-xs text-slate-500 dark:text-slate-400 line-clamp-2 my-2.5 min-h-[32px]">
+                                ${g.description || '<span class="italic text-slate-400">Brak opisu</span>'}
+                            </p>
+                        </div>
+
+                        <div class="pt-3 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between gap-2">
+                            <button onclick="openGroupMembersTransferModal('${g.id}', '${g.name.replace(/'/g, "\\'")}')" class="flex-1 py-1.5 px-2 bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/60 text-blue-700 dark:text-blue-300 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-colors" title="Edytuj listę członków (Dual-listbox)">
+                                <i class="fa-solid fa-user-pen text-[11px]"></i> Członkowie
+                            </button>
+                            <button onclick="sendSmsToGroup('${g.id}', '${g.name.replace(/'/g, "\\'")}')" class="py-1.5 px-3 bg-emerald-50 dark:bg-emerald-900/30 hover:bg-emerald-100 text-emerald-700 dark:text-emerald-300 font-bold text-xs rounded-xl flex items-center justify-center gap-1 transition-colors" title="Napisz SMS do tej grupy">
+                                <i class="fa-solid fa-paper-plane text-[10px]"></i> SMS
+                            </button>
+                            <button onclick="deleteContactGroup('${g.id}', '${g.name.replace(/'/g, "\\'")}')" class="p-1.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/30 rounded-xl transition-colors" title="Usuń grupę">
+                                <i class="fa-solid fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (err) {
+                console.error("fetchContactGroups error:", err);
+                if (container) {
+                    container.innerHTML = `<div class="col-span-full py-8 text-center text-rose-500">Błąd pobierania grup: ${err.message}</div>`;
+                }
+            }
+        }
+
+        // Group CRUD
+        function openCreateGroupModal() {
+            document.getElementById('modalGroupName').value = '';
+            document.getElementById('modalGroupDescription').value = '';
+            document.getElementById('createGroupModal')?.classList.remove('hidden');
+        }
+        function closeCreateGroupModal() {
+            document.getElementById('createGroupModal')?.classList.add('hidden');
+        }
+
+        async function handleCreateGroupSubmit(e) {
+            e.preventDefault();
+            const name = document.getElementById('modalGroupName').value.trim();
+            const description = document.getElementById('modalGroupDescription').value.trim();
+            if (!name) return;
+
+            try {
+                const res = await fetch('/api/contacts/groups', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ name, description })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    Swal.fire({ icon: 'success', title: 'Utworzono grupę!', text: data.message, timer: 1500, showConfirmButton: false });
+                    closeCreateGroupModal();
+                    fetchContactGroups();
+                } else {
+                    Swal.fire({ icon: 'error', title: 'Błąd tworzenia grupy', text: data.error || 'Nieznany błąd' });
+                }
+            } catch (err) {
+                Swal.fire({ icon: 'error', title: 'Błąd', text: err.message });
+            }
+        }
+
+        async function deleteContactGroup(groupId, groupName) {
+            const confirm = await Swal.fire({
+                title: `Usunąć grupę "${groupName}"?`,
+                text: 'Kontakty przypisane do grupy pozostaną w bazie ogólnej.',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'Tak, usuń',
+                cancelButtonText: 'Anuluj',
+                confirmButtonColor: '#e11d48'
+            });
+            if (!confirm.isConfirmed) return;
+
+            try {
+                const res = await fetch(`/api/contacts/groups/${groupId}`, { method: 'DELETE' });
+                const data = await res.json();
+                if (data.success) {
+                    Swal.fire({ icon: 'success', title: 'Usunięto grupę', text: data.message, timer: 1200, showConfirmButton: false });
+                    fetchContactGroups();
+                } else {
+                    Swal.fire({ icon: 'error', title: 'Błąd', text: data.error });
+                }
+            } catch (e) {
+                Swal.fire({ icon: 'error', title: 'Błąd', text: e.message });
+            }
+        }
+
+        // CSV Import to Group
+        function openImportContactsModal() {
+            document.getElementById('importContactsFileInput').value = '';
+            document.getElementById('importNewGroupNameInput').value = '';
+            document.getElementById('newGroupNameImportBox')?.classList.add('hidden');
+            document.getElementById('importContactsModal')?.classList.remove('hidden');
+            fetchContactGroups();
+        }
+        function closeImportContactsModal() {
+            document.getElementById('importContactsModal')?.classList.add('hidden');
+        }
+
+        function toggleNewGroupInputInImport(val) {
+            const box = document.getElementById('newGroupNameImportBox');
+            if (val === '__NEW__') {
+                box?.classList.remove('hidden');
+                document.getElementById('importNewGroupNameInput')?.focus();
+            } else {
+                box?.classList.add('hidden');
+            }
+        }
+
+        async function handleImportContactsSubmit(e) {
+            e.preventDefault();
+            const fileInput = document.getElementById('importContactsFileInput');
+            if (!fileInput.files || fileInput.files.length === 0) {
+                Swal.fire({ icon: 'warning', title: 'Wybierz plik', text: 'Wskaż plik CSV lub Excel z kontaktami.' });
+                return;
+            }
+
+            const groupSelect = document.getElementById('importTargetGroupSelect').value;
+            const newGroupName = document.getElementById('importNewGroupNameInput').value.trim();
+
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+            if (groupSelect === '__NEW__' && newGroupName) {
+                formData.append('new_group_name', newGroupName);
+            } else if (groupSelect && groupSelect !== '__NEW__') {
+                formData.append('group_id', groupSelect);
+            }
+
+            const btn = document.getElementById('btnImportContactsSubmit');
+            btn.disabled = true;
+            btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin mr-1.5"></i> Importowanie do SMSAPI...`;
+
+            try {
+                const res = await fetch('/api/contacts/import-csv', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await res.json();
+                btn.disabled = false;
+                btn.innerHTML = `<i class="fa-solid fa-cloud-arrow-up mr-1.5"></i> Rozpocznij import`;
+
+                if (data.success) {
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Import zakończony sukcesem!',
+                        html: `
+                            <div class="text-left text-xs space-y-1 mt-2">
+                                <div><b>Pomyślnie zaimportowano:</b> <span class="text-emerald-600 font-bold">${data.imported_count} kontaktów</span></div>
+                                <div><b>Wszystkich znalezionych w pliku:</b> ${data.total_found}</div>
+                                ${data.errors_count > 0 ? `<div class="text-amber-600">Pominięto / istniało wcześniej: ${data.errors_count}</div>` : ''}
+                            </div>
+                        `
+                    });
+                    closeImportContactsModal();
+                    fetchContactGroups();
+                    fetchContacts();
+                } else {
+                    Swal.fire({ icon: 'error', title: 'Błąd importu', text: data.error });
+                }
+            } catch (err) {
+                btn.disabled = false;
+                btn.innerHTML = `<i class="fa-solid fa-cloud-arrow-up mr-1.5"></i> Rozpocznij import`;
+                Swal.fire({ icon: 'error', title: 'Błąd sieci', text: err.message });
+            }
+        }
+
+        // ==========================================
+        // Dual-Listbox Group Members Transfer Logic
+        // ==========================================
+        let currentTransferGroupId = null;
+        let currentTransferGroupName = '';
+        let transferAvailableContacts = []; // Left list (Outside group)
+        let transferGroupMembers = [];       // Right list (In group)
+        let transferSelectedLeftIds = new Set();
+        let transferSelectedRightIds = new Set();
+
+        async function openGroupMembersTransferModal(groupId, groupName) {
+            currentTransferGroupId = groupId;
+            currentTransferGroupName = groupName;
+
+            const modal = document.getElementById('groupMembersModal');
+            const titleBadge = document.getElementById('transferGroupNameBadge');
+            const leftList = document.getElementById('leftContactsList');
+            const rightList = document.getElementById('rightContactsList');
+
+            if (!modal) return;
+            modal.classList.remove('hidden');
+            if (titleBadge) titleBadge.textContent = groupName;
+
+            if (leftList) leftList.innerHTML = `<div class="py-12 text-center text-slate-400"><i class="fa-solid fa-spinner fa-spin mr-1.5"></i>Ładowanie kontaktów...</div>`;
+            if (rightList) rightList.innerHTML = `<div class="py-12 text-center text-slate-400"><i class="fa-solid fa-spinner fa-spin mr-1.5"></i>Ładowanie członków...</div>`;
+
+            transferSelectedLeftIds.clear();
+            transferSelectedRightIds.clear();
+
+            try {
+                // 1. Fetch group members
+                const memRes = await fetch(`/api/contacts/groups/${groupId}/members`);
+                const memData = await memRes.json();
+                transferGroupMembers = memData.members || [];
+                const memberIds = new Set(transferGroupMembers.map(m => String(m.id)));
+
+                // 2. Fetch all contacts
+                const allRes = await fetch(`/api/contacts?limit=500`);
+                const allData = await allRes.json();
+                const allContactsList = allData.contacts || [];
+
+                // 3. Available = all contacts minus existing members
+                transferAvailableContacts = allContactsList.filter(c => !memberIds.has(String(c.id)));
+
+                renderLeftContactsList();
+                renderRightContactsList();
+            } catch (err) {
+                console.error("openGroupMembersTransferModal error:", err);
+                if (leftList) leftList.innerHTML = `<div class="py-6 text-center text-rose-500">Błąd: ${err.message}</div>`;
+                if (rightList) rightList.innerHTML = `<div class="py-6 text-center text-rose-500">Błąd: ${err.message}</div>`;
+            }
+        }
+
+        function closeGroupMembersModal() {
+            document.getElementById('groupMembersModal')?.classList.add('hidden');
+            fetchContactGroups();
+        }
+
+        function renderLeftContactsList(filtered = null) {
+            const list = filtered || transferAvailableContacts;
+            const container = document.getElementById('leftContactsList');
+            const badge = document.getElementById('leftCountBadge');
+            const selectedBadge = document.getElementById('leftSelectedCount');
+
+            if (badge) badge.textContent = `${list.length} z ${transferAvailableContacts.length}`;
+            if (selectedBadge) selectedBadge.textContent = `Wybrano: ${transferSelectedLeftIds.size}`;
+
+            if (!container) return;
+
+            if (list.length === 0) {
+                container.innerHTML = `<div class="py-10 text-center text-slate-400 text-xs">Brak dostępnych kontaktów do przeniesienia.</div>`;
+                return;
+            }
+
+            container.innerHTML = list.map(c => {
+                const id = String(c.id);
+                const isChecked = transferSelectedLeftIds.has(id);
+                const name = `${c.first_name || ''} ${c.last_name || ''}`.trim() || 'Bez nazwy';
+                return `
+                    <label class="flex items-center justify-between p-2 rounded-lg border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-800 hover:bg-blue-50/50 dark:hover:bg-blue-900/20 cursor-pointer transition-colors text-xs ${isChecked ? 'ring-2 ring-blue-500 bg-blue-50/60' : ''}">
+                        <div class="flex items-center gap-2 overflow-hidden">
+                            <input type="checkbox" onchange="toggleLeftContact('${id}', this.checked)" ${isChecked ? 'checked' : ''} class="rounded text-blue-600 focus:ring-0">
+                            <div class="truncate">
+                                <div class="font-bold text-slate-800 dark:text-slate-100 truncate">${name}</div>
+                                <div class="text-[11px] font-mono text-slate-500">${c.phone_number}</div>
+                            </div>
+                        </div>
+                    </label>
+                `;
+            }).join('');
+        }
+
+        function renderRightContactsList(filtered = null) {
+            const list = filtered || transferGroupMembers;
+            const container = document.getElementById('rightContactsList');
+            const badge = document.getElementById('rightCountBadge');
+            const selectedBadge = document.getElementById('rightSelectedCount');
+
+            if (badge) badge.textContent = `${list.length} z ${transferGroupMembers.length}`;
+            if (selectedBadge) selectedBadge.textContent = `Wybrano: ${transferSelectedRightIds.size}`;
+
+            if (!container) return;
+
+            if (list.length === 0) {
+                container.innerHTML = `<div class="py-10 text-center text-slate-400 text-xs">Grupa jest pusta. Dodaj kontakty z lewej kolumny.</div>`;
+                return;
+            }
+
+            container.innerHTML = list.map(c => {
+                const id = String(c.id);
+                const isChecked = transferSelectedRightIds.has(id);
+                const name = `${c.first_name || ''} ${c.last_name || ''}`.trim() || 'Bez nazwy';
+                return `
+                    <label class="flex items-center justify-between p-2 rounded-lg border border-blue-200 dark:border-blue-900/60 bg-white dark:bg-slate-800 hover:bg-rose-50/50 dark:hover:bg-rose-900/20 cursor-pointer transition-colors text-xs ${isChecked ? 'ring-2 ring-rose-500 bg-rose-50/60' : ''}">
+                        <div class="flex items-center gap-2 overflow-hidden">
+                            <input type="checkbox" onchange="toggleRightContact('${id}', this.checked)" ${isChecked ? 'checked' : ''} class="rounded text-rose-600 focus:ring-0">
+                            <div class="truncate">
+                                <div class="font-bold text-slate-800 dark:text-slate-100 truncate">${name}</div>
+                                <div class="text-[11px] font-mono text-blue-600 dark:text-blue-400 font-semibold">${c.phone_number}</div>
+                            </div>
+                        </div>
+                    </label>
+                `;
+            }).join('');
+        }
+
+        function toggleLeftContact(id, checked) {
+            if (checked) transferSelectedLeftIds.add(id);
+            else transferSelectedLeftIds.delete(id);
+            document.getElementById('leftSelectedCount').textContent = `Wybrano: ${transferSelectedLeftIds.size}`;
+        }
+
+        function toggleRightContact(id, checked) {
+            if (checked) transferSelectedRightIds.add(id);
+            else transferSelectedRightIds.delete(id);
+            document.getElementById('rightSelectedCount').textContent = `Wybrano: ${transferSelectedRightIds.size}`;
+        }
+
+        function toggleSelectAllLeft(checked) {
+            const q = document.getElementById('leftFilterInput')?.value.toLowerCase() || '';
+            const visible = transferAvailableContacts.filter(c => {
+                const text = `${c.first_name || ''} ${c.last_name || ''} ${c.phone_number || ''}`.toLowerCase();
+                return text.includes(q);
+            });
+            visible.forEach(c => {
+                if (checked) transferSelectedLeftIds.add(String(c.id));
+                else transferSelectedLeftIds.delete(String(c.id));
+            });
+            filterLeftContacts();
+        }
+
+        function toggleSelectAllRight(checked) {
+            const q = document.getElementById('rightFilterInput')?.value.toLowerCase() || '';
+            const visible = transferGroupMembers.filter(c => {
+                const text = `${c.first_name || ''} ${c.last_name || ''} ${c.phone_number || ''}`.toLowerCase();
+                return text.includes(q);
+            });
+            visible.forEach(c => {
+                if (checked) transferSelectedRightIds.add(String(c.id));
+                else transferSelectedRightIds.delete(String(c.id));
+            });
+            filterRightContacts();
+        }
+
+        function filterLeftContacts() {
+            const q = document.getElementById('leftFilterInput')?.value.toLowerCase() || '';
+            const filtered = transferAvailableContacts.filter(c => {
+                const text = `${c.first_name || ''} ${c.last_name || ''} ${c.phone_number || ''}`.toLowerCase();
+                return text.includes(q);
+            });
+            renderLeftContactsList(filtered);
+        }
+
+        function filterRightContacts() {
+            const q = document.getElementById('rightFilterInput')?.value.toLowerCase() || '';
+            const filtered = transferGroupMembers.filter(c => {
+                const text = `${c.first_name || ''} ${c.last_name || ''} ${c.phone_number || ''}`.toLowerCase();
+                return text.includes(q);
+            });
+            renderRightContactsList(filtered);
+        }
+
+        // Transfer Execution: Add to Group (Left -> Right)
+        async function transferSelectedToRight() {
+            if (transferSelectedLeftIds.size === 0) {
+                Swal.fire({ icon: 'info', title: 'Wybierz kontakty', text: 'Zaznacz przynajmniej jeden kontakt w lewej kolumnie, aby dodać go do grupy.' });
+                return;
+            }
+
+            const idsToAdd = Array.from(transferSelectedLeftIds);
+            const statusInfo = document.getElementById('transferStatusInfo');
+            if (statusInfo) statusInfo.innerHTML = `<span class="text-blue-600 font-bold"><i class="fa-solid fa-spinner fa-spin mr-1"></i> Zapisywanie ${idsToAdd.length} kontaktów w SMSAPI...</span>`;
+
+            try {
+                const res = await fetch(`/api/contacts/groups/${currentTransferGroupId}/members`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ contact_ids: idsToAdd })
+                });
+                const data = await res.json();
+
+                // Move items in local memory
+                const movedItems = transferAvailableContacts.filter(c => transferSelectedLeftIds.has(String(c.id)));
+                transferGroupMembers.push(...movedItems);
+                transferAvailableContacts = transferAvailableContacts.filter(c => !transferSelectedLeftIds.has(String(c.id)));
+                transferSelectedLeftIds.clear();
+
+                const chk = document.getElementById('selectAllLeft');
+                if (chk) chk.checked = false;
+                filterLeftContacts();
+                filterRightContacts();
+
+                if (statusInfo) statusInfo.innerHTML = `<span class="text-emerald-600 font-bold">✅ Dodano ${movedItems.length} kontaktów do grupy.</span>`;
+            } catch (err) {
+                if (statusInfo) statusInfo.innerHTML = `<span class="text-rose-600">Błąd: ${err.message}</span>`;
+            }
+        }
+
+        async function transferAllToRight() {
+            const q = document.getElementById('leftFilterInput')?.value.toLowerCase() || '';
+            const visible = transferAvailableContacts.filter(c => {
+                const text = `${c.first_name || ''} ${c.last_name || ''} ${c.phone_number || ''}`.toLowerCase();
+                return text.includes(q);
+            });
+
+            if (visible.length === 0) return;
+
+            const idsToAdd = visible.map(c => String(c.id));
+            const statusInfo = document.getElementById('transferStatusInfo');
+            if (statusInfo) statusInfo.innerHTML = `<span class="text-blue-600 font-bold"><i class="fa-solid fa-spinner fa-spin mr-1"></i> Dodawanie wszystkich (${idsToAdd.length}) kontaktów do grupy...</span>`;
+
+            try {
+                await fetch(`/api/contacts/groups/${currentTransferGroupId}/members`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ contact_ids: idsToAdd })
+                });
+
+                const addedSet = new Set(idsToAdd);
+                const movedItems = transferAvailableContacts.filter(c => addedSet.has(String(c.id)));
+                transferGroupMembers.push(...movedItems);
+                transferAvailableContacts = transferAvailableContacts.filter(c => !addedSet.has(String(c.id)));
+                transferSelectedLeftIds.clear();
+
+                const chk = document.getElementById('selectAllLeft');
+                if (chk) chk.checked = false;
+                filterLeftContacts();
+                filterRightContacts();
+
+                if (statusInfo) statusInfo.innerHTML = `<span class="text-emerald-600 font-bold">✅ Dodano wszystkich (${movedItems.length}) do grupy.</span>`;
+            } catch (err) {
+                if (statusInfo) statusInfo.innerHTML = `<span class="text-rose-600">Błąd: ${err.message}</span>`;
+            }
+        }
+
+        // Transfer Execution: Remove from Group (Right -> Left)
+        async function transferSelectedToLeft() {
+            if (transferSelectedRightIds.size === 0) {
+                Swal.fire({ icon: 'info', title: 'Wybierz kontakty', text: 'Zaznacz kontakty w prawej kolumnie, aby usunąć je z grupy.' });
+                return;
+            }
+
+            const idsToRemove = Array.from(transferSelectedRightIds);
+            const statusInfo = document.getElementById('transferStatusInfo');
+            if (statusInfo) statusInfo.innerHTML = `<span class="text-rose-600 font-bold"><i class="fa-solid fa-spinner fa-spin mr-1"></i> Usuwanie ${idsToRemove.length} kontaktów z grupy w SMSAPI...</span>`;
+
+            try {
+                await fetch(`/api/contacts/groups/${currentTransferGroupId}/members/bulk-remove`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ contact_ids: idsToRemove })
+                });
+
+                const movedItems = transferGroupMembers.filter(c => transferSelectedRightIds.has(String(c.id)));
+                transferAvailableContacts.push(...movedItems);
+                transferGroupMembers = transferGroupMembers.filter(c => !transferSelectedRightIds.has(String(c.id)));
+                transferSelectedRightIds.clear();
+
+                const chk = document.getElementById('selectAllRight');
+                if (chk) chk.checked = false;
+                filterLeftContacts();
+                filterRightContacts();
+
+                if (statusInfo) statusInfo.innerHTML = `<span class="text-emerald-600 font-bold">✅ Usunięto ${movedItems.length} kontaktów z grupy.</span>`;
+            } catch (err) {
+                if (statusInfo) statusInfo.innerHTML = `<span class="text-rose-600">Błąd: ${err.message}</span>`;
+            }
+        }
+
+        async function transferAllToLeft() {
+            const q = document.getElementById('rightFilterInput')?.value.toLowerCase() || '';
+            const visible = transferGroupMembers.filter(c => {
+                const text = `${c.first_name || ''} ${c.last_name || ''} ${c.phone_number || ''}`.toLowerCase();
+                return text.includes(q);
+            });
+
+            if (visible.length === 0) return;
+
+            const idsToRemove = visible.map(c => String(c.id));
+            const statusInfo = document.getElementById('transferStatusInfo');
+            if (statusInfo) statusInfo.innerHTML = `<span class="text-rose-600 font-bold"><i class="fa-solid fa-spinner fa-spin mr-1"></i> Czyszczenie grupy (${idsToRemove.length} kontaktów)...</span>`;
+
+            try {
+                await fetch(`/api/contacts/groups/${currentTransferGroupId}/members/bulk-remove`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ contact_ids: idsToRemove })
+                });
+
+                const removedSet = new Set(idsToRemove);
+                const movedItems = transferGroupMembers.filter(c => removedSet.has(String(c.id)));
+                transferAvailableContacts.push(...movedItems);
+                transferGroupMembers = transferGroupMembers.filter(c => !removedSet.has(String(c.id)));
+                transferSelectedRightIds.clear();
+
+                const chk = document.getElementById('selectAllRight');
+                if (chk) chk.checked = false;
+                filterLeftContacts();
+                filterRightContacts();
+
+                if (statusInfo) statusInfo.innerHTML = `<span class="text-emerald-600 font-bold">✅ Wszyscy członkowie zostali usunięci z grupy.</span>`;
+            } catch (err) {
+                if (statusInfo) statusInfo.innerHTML = `<span class="text-rose-600">Błąd: ${err.message}</span>`;
+            }
+        }
+
+        // Send SMS to Entire Group
+        async function sendSmsToGroup(groupId, groupName) {
+            try {
+                Swal.fire({
+                    title: 'Pobieranie kontaktów...',
+                    html: `Wczytywanie numerów telefonów z grupy <b>${groupName}</b>...`,
+                    allowOutsideClick: false,
+                    didOpen: () => { Swal.showLoading(); }
+                });
+
+                const res = await fetch(`/api/contacts/groups/${groupId}/members`);
+                const data = await res.json();
+                Swal.close();
+
+                const members = data.members || [];
+                if (members.length === 0) {
+                    Swal.fire({ icon: 'warning', title: 'Grupa jest pusta', text: `Grupa "${groupName}" nie posiada jeszcze żadnych kontaktów.` });
+                    return;
+                }
+
+                const numbers = members.map(m => m.phone_number).filter(Boolean);
+                const numbersStr = numbers.join(', ');
+
+                const recipientsInput = document.getElementById('smsRecipients');
+                if (recipientsInput) {
+                    recipientsInput.value = numbersStr;
+                    updateRecipientCount();
+                }
+
+                switchTab('sms-send');
+                const msgInput = document.getElementById('smsMessageText');
+                if (msgInput) {
+                    setTimeout(() => { msgInput.focus(); }, 100);
+                }
+
+                Swal.fire({
+                    icon: 'success',
+                    title: `Wybrano grupę "${groupName}"`,
+                    text: `Wpisano ${numbers.length} numerów odbiorców do wysyłki SMS.`,
+                    timer: 1600,
+                    showConfirmButton: false
+                });
+            } catch (err) {
+                Swal.fire({ icon: 'error', title: 'Błąd', text: err.message });
+            }
         }
 
         // Short URL & HLR

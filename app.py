@@ -1158,6 +1158,307 @@ def create_contact():
         return jsonify({'success': False, 'error': str(e)}), 400
 
 
+@app.route('/api/contacts/groups', methods=['GET'])
+def list_groups():
+    try:
+        client = get_smsapi_client()
+        groups_res = client.contacts.list_groups()
+        g_list = []
+        for g in groups_res:
+            g_list.append({
+                'id': getattr(g, 'id', '') or getattr(g, 'group_id', ''),
+                'name': getattr(g, 'name', '') or 'Bez nazwy',
+                'description': getattr(g, 'description', '') or '',
+                'contacts_count': getattr(g, 'contacts_count', 0) or 0
+            })
+        return jsonify({'success': True, 'groups': g_list})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e), 'groups': []}), 400
+
+
+@app.route('/api/contacts/groups', methods=['POST'])
+def create_group():
+    data = request.json or {}
+    name = data.get('name', '').strip()
+    description = data.get('description', '').strip()
+    if not name:
+        return jsonify({'success': False, 'error': 'Nazwa grupy jest wymagana.'}), 400
+    try:
+        client = get_smsapi_client()
+        res = client.contacts.create_group(name=name, description=description or None)
+        return jsonify({
+            'success': True,
+            'message': f'Grupa "{name}" została utworzona w SMSAPI!',
+            'group': {
+                'id': getattr(res, 'id', ''),
+                'name': getattr(res, 'name', name),
+                'description': getattr(res, 'description', description),
+                'contacts_count': 0
+            }
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+
+
+@app.route('/api/contacts/groups/<group_id>', methods=['DELETE'])
+def delete_group(group_id):
+    try:
+        client = get_smsapi_client()
+        client.contacts.delete_group(group_id=group_id)
+        return jsonify({'success': True, 'message': 'Grupa została usunięta z SMSAPI.'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+
+
+@app.route('/api/contacts/groups/<group_id>/members', methods=['GET'])
+def list_group_members(group_id):
+    try:
+        client = get_smsapi_client()
+        contacts_res = client.contacts.list_contacts(group_id=group_id, limit=200)
+        members_list = []
+        for c in contacts_res:
+            members_list.append({
+                'id': getattr(c, 'id', ''),
+                'first_name': getattr(c, 'first_name', ''),
+                'last_name': getattr(c, 'last_name', ''),
+                'phone_number': getattr(c, 'phone_number', ''),
+                'email': getattr(c, 'email', ''),
+                'city': getattr(c, 'city', '')
+            })
+        return jsonify({'success': True, 'members': members_list, 'count': len(members_list)})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e), 'members': [], 'count': 0}), 400
+
+
+@app.route('/api/contacts/groups/<group_id>/members', methods=['POST'])
+def add_group_members(group_id):
+    data = request.json or {}
+    contact_ids = data.get('contact_ids', [])
+    if isinstance(contact_ids, str):
+        contact_ids = [contact_ids]
+    if not contact_ids:
+        return jsonify({'success': False, 'error': 'Nie wybrano żadnych kontaktów do dodania.'}), 400
+
+    try:
+        client = get_smsapi_client()
+        success_count = 0
+        errors = []
+        for cid in contact_ids:
+            try:
+                client.contacts.pin_contact_to_group(group_id=group_id, contact_id=cid)
+                success_count += 1
+            except Exception as err:
+                errors.append(f"{cid}: {str(err)}")
+
+        return jsonify({
+            'success': True,
+            'message': f'Dodano {success_count} kontaktów do grupy.',
+            'added_count': success_count,
+            'errors': errors
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+
+
+@app.route('/api/contacts/groups/<group_id>/members/<contact_id>', methods=['DELETE'])
+def remove_group_member(group_id, contact_id):
+    try:
+        client = get_smsapi_client()
+        client.contacts.unpin_contact_from_group(group_id=group_id, contact_id=contact_id)
+        return jsonify({'success': True, 'message': 'Kontakt został usunięty z grupy.'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+
+
+@app.route('/api/contacts/groups/<group_id>/members/bulk-remove', methods=['POST'])
+def bulk_remove_group_members(group_id):
+    data = request.json or {}
+    contact_ids = data.get('contact_ids', [])
+    if isinstance(contact_ids, str):
+        contact_ids = [contact_ids]
+    if not contact_ids:
+        return jsonify({'success': False, 'error': 'Nie wybrano żadnych kontaktów do usunięcia.'}), 400
+
+    try:
+        client = get_smsapi_client()
+        removed_count = 0
+        errors = []
+        for cid in contact_ids:
+            try:
+                client.contacts.unpin_contact_from_group(group_id=group_id, contact_id=cid)
+                removed_count += 1
+            except Exception as err:
+                errors.append(f"{cid}: {str(err)}")
+
+        return jsonify({
+            'success': True,
+            'message': f'Usunięto {removed_count} kontaktów z grupy.',
+            'removed_count': removed_count,
+            'errors': errors
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+
+
+@app.route('/api/contacts/import-csv', methods=['POST'])
+def import_contacts_csv():
+    if 'file' not in request.files:
+        return jsonify({'success': False, 'error': 'Brak pliku w żądaniu.'}), 400
+
+    file = request.files['file']
+    if not file.filename:
+        return jsonify({'success': False, 'error': 'Nie wybrano pliku.'}), 400
+
+    group_id = request.form.get('group_id', '').strip()
+    new_group_name = request.form.get('new_group_name', '').strip()
+
+    try:
+        client = get_smsapi_client()
+
+        # If user wants a new group created on the fly
+        if new_group_name and not group_id:
+            try:
+                g_res = client.contacts.create_group(name=new_group_name)
+                group_id = getattr(g_res, 'id', '')
+            except Exception as ge:
+                print("Create group error during import:", ge)
+
+        # Parse CSV or XLSX
+        filename = file.filename.lower()
+        rows_to_import = []
+
+        if filename.endswith('.csv') or filename.endswith('.txt'):
+            raw_bytes = file.read()
+            try:
+                content = raw_bytes.decode('utf-8-sig')
+            except UnicodeDecodeError:
+                content = raw_bytes.decode('cp1250', errors='replace')
+
+            sample = content[:2048]
+            delimiter = ';' if ';' in sample else (',' if ',' in sample else '\t')
+            reader = csv.reader(io.StringIO(content), delimiter=delimiter)
+
+            headers = None
+            for row in reader:
+                if not row or not any(row):
+                    continue
+                if headers is None:
+                    headers = [h.strip().lower() for h in row]
+                    if any(re.match(r'^\+?[0-9]{7,15}$', h) for h in headers):
+                        phone = headers[0]
+                        rows_to_import.append({'phone_number': phone, 'first_name': '', 'last_name': '', 'email': ''})
+                        headers = ['phone']
+                    continue
+
+                row_dict = {}
+                for idx, cell in enumerate(row):
+                    col_name = headers[idx] if idx < len(headers) else f'col_{idx}'
+                    row_dict[col_name] = cell.strip()
+
+                phone = ''
+                for k, v in row_dict.items():
+                    if any(term in k for term in ['phone', 'tel', 'telefon', 'numer', 'komorka']) or re.match(r'^\+?[0-9]{7,15}$', v):
+                        phone = v
+                        break
+                if not phone and row:
+                    phone = row[0].strip()
+
+                first_name = row_dict.get('first_name') or row_dict.get('imie') or row_dict.get('name') or ''
+                last_name = row_dict.get('last_name') or row_dict.get('nazwisko') or ''
+                email = row_dict.get('email') or row_dict.get('mail') or ''
+                city = row_dict.get('city') or row_dict.get('miasto') or ''
+
+                if phone:
+                    rows_to_import.append({
+                        'phone_number': phone,
+                        'first_name': first_name,
+                        'last_name': last_name,
+                        'email': email,
+                        'city': city
+                    })
+
+        elif filename.endswith('.xlsx') or filename.endswith('.xls'):
+            try:
+                import openpyxl
+                wb = openpyxl.load_workbook(file, data_only=True)
+                ws = wb.active
+                headers = []
+                for idx, row in enumerate(ws.iter_rows(values_only=True)):
+                    if not row or not any(row):
+                        continue
+                    if not headers:
+                        headers = [str(c or '').strip().lower() for c in row]
+                        continue
+                    row_dict = {headers[i]: str(row[i] or '').strip() for i in range(min(len(headers), len(row)))}
+                    phone = ''
+                    for k, v in row_dict.items():
+                        if any(term in k for term in ['phone', 'tel', 'telefon', 'numer']) or re.match(r'^\+?[0-9]{7,15}$', v):
+                            phone = v
+                            break
+                    if phone:
+                        rows_to_import.append({
+                            'phone_number': phone,
+                            'first_name': row_dict.get('first_name', '') or row_dict.get('imie', ''),
+                            'last_name': row_dict.get('last_name', '') or row_dict.get('nazwisko', ''),
+                            'email': row_dict.get('email', ''),
+                            'city': row_dict.get('city', '') or row_dict.get('miasto', '')
+                        })
+            except ImportError:
+                return jsonify({'success': False, 'error': 'Brak biblioteki openpyxl do obsługi plików Excel. Użyj formatu CSV.'}), 400
+
+        if not rows_to_import:
+            return jsonify({'success': False, 'error': 'Nie znaleziono prawidłowych numerów telefonów w przesłanym pliku.'}), 400
+
+        imported_count = 0
+        errors = []
+
+        for item in rows_to_import:
+            p_clean = re.sub(r'[^0-9+]', '', item['phone_number'])
+            if len(p_clean) == 9 and not p_clean.startswith(('+', '48')):
+                p_clean = '48' + p_clean
+
+            if len(p_clean) < 7:
+                continue
+
+            try:
+                res = client.contacts.create_contact(
+                    phone_number=p_clean,
+                    first_name=item['first_name'] or None,
+                    last_name=item['last_name'] or None,
+                    email=item['email'] or None
+                )
+                contact_id = getattr(res, 'id', '')
+                if group_id and contact_id:
+                    try:
+                        client.contacts.pin_contact_to_group(group_id=group_id, contact_id=contact_id)
+                    except Exception:
+                        pass
+                imported_count += 1
+            except Exception as ce:
+                if 'exists' in str(ce).lower() and group_id:
+                    try:
+                        search_res = client.contacts.list_contacts(phone_number=p_clean, limit=1)
+                        for existing_c in search_res:
+                            client.contacts.pin_contact_to_group(group_id=group_id, contact_id=existing_c.id)
+                            imported_count += 1
+                            break
+                    except Exception:
+                        pass
+                errors.append(f"{p_clean}: {str(ce)}")
+
+        return jsonify({
+            'success': True,
+            'message': f'Pomyślnie zaimportowano {imported_count} kontaktów do SMSAPI!',
+            'total_found': len(rows_to_import),
+            'imported_count': imported_count,
+            'errors_count': len(errors),
+            'group_id': group_id
+        })
+
+    except Exception as e:
+        return jsonify({'success': False, 'error': f'Błąd importu: {str(e)}'}), 400
+
+
 @app.route('/api/contacts/<id>', methods=['DELETE'])
 def delete_contact(id):
     try:
