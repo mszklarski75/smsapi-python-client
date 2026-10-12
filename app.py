@@ -1853,6 +1853,10 @@ def import_contacts_csv():
                 return None
             if target in headers:
                 return headers.index(target)
+            target_clean = str(target).strip().lower()
+            for idx, h in enumerate(headers):
+                if str(h).strip().lower() == target_clean:
+                    return idx
             try:
                 idx = int(target)
                 if 0 <= idx < len(headers):
@@ -1981,6 +1985,7 @@ def import_contacts_csv():
             'total_found': len(prepared_items),
             'imported_count': imported_count,
             'errors_count': len(errors),
+            'errors': errors[:5],
             'group_id': group_id
         })
 

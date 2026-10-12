@@ -3426,7 +3426,7 @@
         async function handleImportContactsSubmit(e) {
             e.preventDefault();
             const fileInput = document.getElementById('importContactsFileInput');
-            if (!fileInput.files || fileInput.files.length === 0) {
+            if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
                 Swal.fire({ icon: 'warning', title: 'Wybierz plik', text: 'Wskaż plik CSV lub Excel z kontaktami.' });
                 return;
             }
@@ -3437,8 +3437,8 @@
                 return;
             }
 
-            const groupSelect = document.getElementById('importTargetGroupSelect').value;
-            const newGroupName = document.getElementById('importNewGroupNameInput').value.trim();
+            const groupSelect = document.getElementById('importTargetGroupSelect')?.value || '';
+            const newGroupName = document.getElementById('importNewGroupNameInput')?.value?.trim() || '';
             const hasHeaders = document.getElementById('importHasHeaders')?.checked ?? true;
             const autoPrefix = document.getElementById('importAutoPrefix')?.checked ?? true;
 
@@ -3464,8 +3464,23 @@
             }
 
             const btn = document.getElementById('btnImportContactsSubmit');
-            btn.disabled = true;
-            btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin mr-1.5"></i> Importowanie do SMSAPI...`;
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin mr-1.5"></i> Importowanie...`;
+            }
+
+            Swal.fire({
+                title: 'Importowanie kontaktów...',
+                html: `
+                    <div class="py-4 text-center space-y-3">
+                        <i class="fa-solid fa-circle-notch fa-spin text-3xl text-emerald-500"></i>
+                        <p class="text-xs text-slate-500 dark:text-slate-400">Trwa zapisywanie i przypisywanie kontaktów do grupy w SMSAPI.<br>Proszę czekać...</p>
+                    </div>
+                `,
+                allowOutsideClick: false,
+                allowEscapeKey: false,
+                showConfirmButton: false
+            });
 
             try {
                 const res = await fetch('/api/contacts/import-csv', {
@@ -3473,31 +3488,54 @@
                     body: formData
                 });
                 const data = await res.json();
-                btn.disabled = false;
-                btn.innerHTML = `<i class="fa-solid fa-cloud-arrow-up mr-1.5"></i> Rozpocznij import`;
 
                 if (data.success) {
-                    Swal.fire({
-                        icon: 'success',
-                        title: 'Import zakończony sukcesem!',
-                        html: `
-                            <div class="text-left text-xs space-y-1.5 mt-2 p-3 bg-slate-50 dark:bg-slate-700/50 rounded-xl border border-slate-200 dark:border-slate-600">
-                                <div><b class="text-slate-700 dark:text-slate-200">Pomyślnie zaimportowano:</b> <span class="text-emerald-600 font-bold">${data.imported_count} kontaktów</span></div>
-                                <div><b class="text-slate-700 dark:text-slate-200">Wszystkich rekordów w pliku:</b> ${data.total_found}</div>
-                                ${data.errors_count > 0 ? `<div class="text-amber-600">Pominięto / istniało wcześniej: ${data.errors_count}</div>` : ''}
-                            </div>
-                        `
-                    });
                     closeImportContactsModal();
+
+                    if (data.imported_count > 0) {
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'Import zakończony sukcesem!',
+                            html: `
+                                <div class="text-left text-xs space-y-2 mt-2 p-3.5 bg-slate-50 dark:bg-slate-700/50 rounded-xl border border-slate-200 dark:border-slate-600">
+                                    <div class="flex items-center justify-between">
+                                        <span class="text-slate-600 dark:text-slate-300">Pomyślnie zaimportowano:</span>
+                                        <span class="text-emerald-600 dark:text-emerald-400 font-bold text-sm">${data.imported_count} kontaktów</span>
+                                    </div>
+                                    <div class="flex items-center justify-between text-slate-500">
+                                        <span>Wszystkich rekordów w pliku:</span>
+                                        <span class="font-semibold">${data.total_found}</span>
+                                    </div>
+                                    ${data.errors_count > 0 ? `<div class="text-amber-500 pt-1 border-t border-slate-200 dark:border-slate-600">Pominięto / błędy: ${data.errors_count}</div>` : ''}
+                                </div>
+                            `
+                        });
+                    } else {
+                        const errMsg = (data.errors && data.errors.length > 0) ? `<div class="mt-2 font-mono text-[11px] p-2 bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 rounded border border-rose-200 dark:border-rose-800 text-left overflow-x-auto">${data.errors[0]}</div>` : '';
+                        Swal.fire({
+                            icon: 'warning',
+                            title: 'Nie dodano kontaktów',
+                            html: `
+                                <div class="text-xs space-y-2 text-slate-600 dark:text-slate-300">
+                                    <p>Nie udało się dodać kontaktów do SMSAPI (0/${data.total_found}).</p>
+                                    ${errMsg}
+                                </div>
+                            `
+                        });
+                    }
+
                     fetchContactGroups();
                     fetchContacts();
                 } else {
-                    Swal.fire({ icon: 'error', title: 'Błąd importu', text: data.error });
+                    Swal.fire({ icon: 'error', title: 'Błąd importu', text: data.error || 'Wystąpił nieoczekiwany błąd podczas importu.' });
                 }
             } catch (err) {
-                btn.disabled = false;
-                btn.innerHTML = `<i class="fa-solid fa-cloud-arrow-up mr-1.5"></i> Rozpocznij import`;
-                Swal.fire({ icon: 'error', title: 'Błąd sieci', text: err.message });
+                Swal.fire({ icon: 'error', title: 'Błąd połączenia', text: err.message });
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = `<i class="fa-solid fa-cloud-arrow-up mr-1.5"></i> Rozpocznij import`;
+                }
             }
         }
 
