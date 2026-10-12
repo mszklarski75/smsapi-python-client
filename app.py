@@ -10,6 +10,8 @@ import os
 import sys
 import re
 import json
+import time
+import threading
 import sqlite3
 import datetime
 import functools
@@ -1300,6 +1302,192 @@ def bulk_remove_group_members(group_id):
         return jsonify({'success': False, 'error': str(e)}), 400
 
 
+# ==========================================================
+# Helpers: File Parsing & Column Auto-Mapping
+# ==========================================================
+def guess_column_mapping(headers: List[str], sample_rows: List[List[str]]) -> Dict[str, str]:
+    mapping = {
+        'phone': '',
+        'first_name': '',
+        'last_name': '',
+        'email': '',
+        'city': '',
+        'gender': '',
+        'birthday': ''
+    }
+
+    patterns = [
+        ('last_name', [r'nazwisk', r'last_?name', r'lname', r'surname']),
+        ('first_name', [r'imi[eę]', r'first_?name', r'fname', r'first', r'imiona']),
+        ('phone', [r'tel', r'phone', r'kom[oó]rk', r'msisdn', r'numer', r'odbiorca', r'kontakt', r'mobile', r'telefon']),
+        ('email', [r'e-?mail', r'mail', r'poczta']),
+        ('city', [r'miasto', r'city', r'miejscowo[sś][cć]']),
+        ('gender', [r'p[lł]e[cć]', r'gender', r'sex']),
+        ('birthday', [r'urodzin', r'birthday', r'data_ur', r'data_urodzenia', r'bday'])
+    ]
+
+    used_headers = set()
+    for field, pat_list in patterns:
+        for h in headers:
+            if h in used_headers:
+                continue
+            h_clean = str(h).lower().strip()
+            if any(re.search(pat, h_clean) for pat in pat_list):
+                mapping[field] = h
+                used_headers.add(h)
+                break
+
+    # If first_name not found, check 'klient' / 'osoba' (if not an ID/Number column)
+    if not mapping['first_name']:
+        for h in headers:
+            if h in used_headers:
+                continue
+            h_clean = str(h).lower().strip()
+            if not re.search(r'^(id|nr|lp|kod)', h_clean) and any(re.search(pat, h_clean) for pat in [r'klient', r'odbiorca', r'osoba']):
+                mapping['first_name'] = h
+                used_headers.add(h)
+                break
+
+    # If phone not matched by name, check sample row values
+    if not mapping['phone'] and sample_rows:
+        for idx, h in enumerate(headers):
+            if h in used_headers:
+                continue
+            col_vals = [r[idx] for r in sample_rows if len(r) > idx]
+            num_matches = sum(1 for v in col_vals if re.match(r'^\+?[0-9\s\-()]{7,20}$', str(v).strip()))
+            if num_matches >= max(1, len(col_vals) // 2):
+                mapping['phone'] = h
+                used_headers.add(h)
+                break
+
+    # Final fallback for phone: first available header
+    if not mapping['phone'] and headers:
+        mapping['phone'] = headers[0]
+
+    return mapping
+
+
+def _parse_contacts_file_raw(file_bytes: bytes, filename: str, has_headers: bool = True):
+    filename_lower = filename.lower()
+    raw_rows = []
+
+    if filename_lower.endswith('.xlsx') or filename_lower.endswith('.xls'):
+        try:
+            import openpyxl
+            wb = openpyxl.load_workbook(io.BytesIO(file_bytes), data_only=True)
+            ws = wb.active
+            for row in ws.iter_rows(values_only=True):
+                if row is None:
+                    continue
+                str_row = [str(c).strip() if c is not None else '' for c in row]
+                if any(str_row):
+                    raw_rows.append(str_row)
+        except Exception as e:
+            raise ValueError(f"Błąd odczytu pliku Excel: {str(e)}")
+    else:
+        # CSV or TXT
+        content = None
+        for enc in ['utf-8-sig', 'utf-8', 'cp1250', 'iso-8859-2', 'latin1']:
+            try:
+                content = file_bytes.decode(enc)
+                break
+            except UnicodeDecodeError:
+                continue
+        if content is None:
+            content = file_bytes.decode('utf-8', errors='replace')
+
+        sample = content[:4096]
+        if ';' in sample:
+            delimiter = ';'
+        elif '\t' in sample:
+            delimiter = '\t'
+        elif '|' in sample:
+            delimiter = '|'
+        else:
+            delimiter = ','
+
+        reader = csv.reader(io.StringIO(content), delimiter=delimiter)
+        for row in reader:
+            if row and any(c.strip() for c in row):
+                raw_rows.append([c.strip() for c in row])
+
+    if not raw_rows:
+        return {'headers': [], 'data_rows': [], 'sample_rows': [], 'total_rows': 0, 'suggested_mapping': {}}
+
+    max_cols = max(len(r) for r in raw_rows)
+    normalized_rows = []
+    for r in raw_rows:
+        r_padded = r + [''] * (max_cols - len(r))
+        normalized_rows.append(r_padded)
+
+    if has_headers:
+        headers = [h if h else f'Kolumna {i+1}' for i, h in enumerate(normalized_rows[0])]
+        data_rows = normalized_rows[1:]
+    else:
+        headers = [f'Kolumna {i+1}' for i in range(max_cols)]
+        data_rows = normalized_rows
+
+    sample_rows = data_rows[:5]
+    suggested = guess_column_mapping(headers, sample_rows)
+
+    return {
+        'headers': headers,
+        'data_rows': data_rows,
+        'sample_rows': sample_rows,
+        'total_rows': len(data_rows),
+        'suggested_mapping': suggested
+    }
+
+
+def normalize_gender(g_str: Optional[str]) -> Optional[str]:
+    if not g_str:
+        return None
+    g = str(g_str).strip().lower()
+    if g in ['m', 'mezczyzna', 'mężczyzna', 'pan', 'male', 'chłopak', 'facet']:
+        return 'male'
+    if g in ['k', 'kobieta', 'pani', 'female', 'f', 'dziewczyna']:
+        return 'female'
+    return None
+
+
+def normalize_birthday(b_str: Optional[str]) -> Optional[str]:
+    if not b_str:
+        return None
+    b = str(b_str).strip()
+    if re.match(r'^\d{4}-\d{2}-\d{2}$', b):
+        return b
+    m = re.match(r'^(\d{1,2})[./\-](\d{1,2})[./\-](\d{4})$', b)
+    if m:
+        return f'{m.group(3)}-{int(m.group(2)):02d}-{int(m.group(1)):02d}'
+    return None
+
+
+@app.route('/api/contacts/parse-file', methods=['POST'])
+def parse_contacts_file():
+    if 'file' not in request.files:
+        return jsonify({'success': False, 'error': 'Brak pliku w żądaniu.'}), 400
+
+    file = request.files['file']
+    if not file.filename:
+        return jsonify({'success': False, 'error': 'Nie wybrano pliku.'}), 400
+
+    has_headers = request.form.get('has_headers', '1') in ['1', 'true', 'True']
+
+    try:
+        raw_bytes = file.read()
+        parsed = _parse_contacts_file_raw(raw_bytes, file.filename, has_headers=has_headers)
+        return jsonify({
+            'success': True,
+            'filename': file.filename,
+            'headers': parsed['headers'],
+            'sample_rows': parsed['sample_rows'],
+            'total_rows': parsed['total_rows'],
+            'suggested_mapping': parsed['suggested_mapping']
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+
+
 @app.route('/api/contacts/import-csv', methods=['POST'])
 def import_contacts_csv():
     if 'file' not in request.files:
@@ -1311,6 +1499,26 @@ def import_contacts_csv():
 
     group_id = request.form.get('group_id', '').strip()
     new_group_name = request.form.get('new_group_name', '').strip()
+    has_headers = request.form.get('has_headers', '1') in ['1', 'true', 'True']
+    auto_prefix = request.form.get('auto_prefix_48', '1') in ['1', 'true', 'True']
+
+    # Column mapping JSON or form fields
+    raw_mapping = request.form.get('mapping', '')
+    if raw_mapping:
+        try:
+            mapping = json.loads(raw_mapping)
+        except Exception:
+            mapping = {}
+    else:
+        mapping = {
+            'phone': request.form.get('map_phone', ''),
+            'first_name': request.form.get('map_first_name', ''),
+            'last_name': request.form.get('map_last_name', ''),
+            'email': request.form.get('map_email', ''),
+            'city': request.form.get('map_city', ''),
+            'gender': request.form.get('map_gender', ''),
+            'birthday': request.form.get('map_birthday', '')
+        }
 
     try:
         client = get_smsapi_client()
@@ -1323,119 +1531,88 @@ def import_contacts_csv():
             except Exception as ge:
                 print("Create group error during import:", ge)
 
-        # Parse CSV or XLSX
-        filename = file.filename.lower()
-        rows_to_import = []
+        raw_bytes = file.read()
+        parsed = _parse_contacts_file_raw(raw_bytes, file.filename, has_headers=has_headers)
+        headers = parsed['headers']
+        data_rows = parsed['data_rows']
 
-        if filename.endswith('.csv') or filename.endswith('.txt'):
-            raw_bytes = file.read()
+        if not data_rows:
+            return jsonify({'success': False, 'error': 'Plik nie zawiera żadnych wierszy z danymi.'}), 400
+
+        # Auto-fallback mapping if not provided
+        if not mapping.get('phone'):
+            mapping = parsed['suggested_mapping']
+
+        def get_col_index(field_name):
+            target = mapping.get(field_name, '')
+            if not target:
+                return None
+            if target in headers:
+                return headers.index(target)
             try:
-                content = raw_bytes.decode('utf-8-sig')
-            except UnicodeDecodeError:
-                content = raw_bytes.decode('cp1250', errors='replace')
+                idx = int(target)
+                if 0 <= idx < len(headers):
+                    return idx
+            except ValueError:
+                pass
+            return None
 
-            sample = content[:2048]
-            delimiter = ';' if ';' in sample else (',' if ',' in sample else '\t')
-            reader = csv.reader(io.StringIO(content), delimiter=delimiter)
+        phone_idx = get_col_index('phone')
+        fn_idx = get_col_index('first_name')
+        ln_idx = get_col_index('last_name')
+        em_idx = get_col_index('email')
+        city_idx = get_col_index('city')
+        gender_idx = get_col_index('gender')
+        bday_idx = get_col_index('birthday')
 
-            headers = None
-            for row in reader:
-                if not row or not any(row):
-                    continue
-                if headers is None:
-                    headers = [h.strip().lower() for h in row]
-                    if any(re.match(r'^\+?[0-9]{7,15}$', h) for h in headers):
-                        phone = headers[0]
-                        rows_to_import.append({'phone_number': phone, 'first_name': '', 'last_name': '', 'email': ''})
-                        headers = ['phone']
-                    continue
-
-                row_dict = {}
-                for idx, cell in enumerate(row):
-                    col_name = headers[idx] if idx < len(headers) else f'col_{idx}'
-                    row_dict[col_name] = cell.strip()
-
-                phone = ''
-                for k, v in row_dict.items():
-                    if any(term in k for term in ['phone', 'tel', 'telefon', 'numer', 'komorka']) or re.match(r'^\+?[0-9]{7,15}$', v):
-                        phone = v
-                        break
-                if not phone and row:
-                    phone = row[0].strip()
-
-                first_name = row_dict.get('first_name') or row_dict.get('imie') or row_dict.get('name') or ''
-                last_name = row_dict.get('last_name') or row_dict.get('nazwisko') or ''
-                email = row_dict.get('email') or row_dict.get('mail') or ''
-                city = row_dict.get('city') or row_dict.get('miasto') or ''
-
-                if phone:
-                    rows_to_import.append({
-                        'phone_number': phone,
-                        'first_name': first_name,
-                        'last_name': last_name,
-                        'email': email,
-                        'city': city
-                    })
-
-        elif filename.endswith('.xlsx') or filename.endswith('.xls'):
-            try:
-                import openpyxl
-                wb = openpyxl.load_workbook(file, data_only=True)
-                ws = wb.active
-                headers = []
-                for idx, row in enumerate(ws.iter_rows(values_only=True)):
-                    if not row or not any(row):
-                        continue
-                    if not headers:
-                        headers = [str(c or '').strip().lower() for c in row]
-                        continue
-                    row_dict = {headers[i]: str(row[i] or '').strip() for i in range(min(len(headers), len(row)))}
-                    phone = ''
-                    for k, v in row_dict.items():
-                        if any(term in k for term in ['phone', 'tel', 'telefon', 'numer']) or re.match(r'^\+?[0-9]{7,15}$', v):
-                            phone = v
-                            break
-                    if phone:
-                        rows_to_import.append({
-                            'phone_number': phone,
-                            'first_name': row_dict.get('first_name', '') or row_dict.get('imie', ''),
-                            'last_name': row_dict.get('last_name', '') or row_dict.get('nazwisko', ''),
-                            'email': row_dict.get('email', ''),
-                            'city': row_dict.get('city', '') or row_dict.get('miasto', '')
-                        })
-            except ImportError:
-                return jsonify({'success': False, 'error': 'Brak biblioteki openpyxl do obsługi plików Excel. Użyj formatu CSV.'}), 400
-
-        if not rows_to_import:
-            return jsonify({'success': False, 'error': 'Nie znaleziono prawidłowych numerów telefonów w przesłanym pliku.'}), 400
+        if phone_idx is None:
+            return jsonify({'success': False, 'error': 'Nie wybrano kolumny z numerem telefonu.'}), 400
 
         imported_count = 0
         errors = []
 
-        for item in rows_to_import:
-            p_clean = re.sub(r'[^0-9+]', '', item['phone_number'])
-            if len(p_clean) == 9 and not p_clean.startswith(('+', '48')):
+        for row in data_rows:
+            if not row:
+                continue
+            raw_phone = row[phone_idx] if phone_idx < len(row) else ''
+            p_clean = re.sub(r'[^0-9+]', '', str(raw_phone).strip())
+
+            if auto_prefix and len(p_clean) == 9 and not p_clean.startswith(('+', '48')):
                 p_clean = '48' + p_clean
 
             if len(p_clean) < 7:
                 continue
 
+            raw_fn = row[fn_idx].strip() if fn_idx is not None and fn_idx < len(row) else ''
+            raw_ln = row[ln_idx].strip() if ln_idx is not None and ln_idx < len(row) else ''
+            raw_em = row[em_idx].strip() if em_idx is not None and em_idx < len(row) else ''
+            raw_city = row[city_idx].strip() if city_idx is not None and city_idx < len(row) else ''
+            raw_gender = normalize_gender(row[gender_idx].strip() if gender_idx is not None and gender_idx < len(row) else None)
+            raw_bday = normalize_birthday(row[bday_idx].strip() if bday_idx is not None and bday_idx < len(row) else None)
+
+            contact_payload = {
+                'phone_number': p_clean,
+                'first_name': raw_fn or None,
+                'last_name': raw_ln or None,
+                'email': raw_em or None,
+                'gender': raw_gender or None,
+                'birthday_date': raw_bday or None
+            }
+            if raw_city:
+                contact_payload['description'] = f"Miasto: {raw_city}"
+
             try:
-                res = client.contacts.create_contact(
-                    phone_number=p_clean,
-                    first_name=item['first_name'] or None,
-                    last_name=item['last_name'] or None,
-                    email=item['email'] or None
-                )
-                contact_id = getattr(res, 'id', '')
-                if group_id and contact_id:
+                res = client.contacts.create_contact(**contact_payload)
+                cid = getattr(res, 'id', '')
+                if group_id and cid:
                     try:
-                        client.contacts.pin_contact_to_group(group_id=group_id, contact_id=contact_id)
+                        client.contacts.pin_contact_to_group(group_id=group_id, contact_id=cid)
                     except Exception:
                         pass
                 imported_count += 1
             except Exception as ce:
-                if 'exists' in str(ce).lower() and group_id:
+                # If contact already exists in SMSAPI, pin to group if specified
+                if group_id and ('exists' in str(ce).lower() or '400' in str(ce) or 'conflict' in str(ce).lower()):
                     try:
                         search_res = client.contacts.list_contacts(phone_number=p_clean, limit=1)
                         for existing_c in search_res:
@@ -1449,7 +1626,7 @@ def import_contacts_csv():
         return jsonify({
             'success': True,
             'message': f'Pomyślnie zaimportowano {imported_count} kontaktów do SMSAPI!',
-            'total_found': len(rows_to_import),
+            'total_found': len(data_rows),
             'imported_count': imported_count,
             'errors_count': len(errors),
             'group_id': group_id

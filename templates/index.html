@@ -1353,42 +1353,150 @@
         </div>
     </div>
 
-    <!-- Import Contacts from CSV/Excel to Group Modal Dialog -->
-    <div id="importContactsModal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-        <div class="bg-white dark:bg-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-700 space-y-4">
-            <div class="flex items-center justify-between">
-                <h3 class="font-bold text-base flex items-center gap-2">
-                    <i class="fa-solid fa-file-csv text-emerald-500"></i> Import kontaktów z pliku CSV/Excel
-                </h3>
-                <button onclick="closeImportContactsModal()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-lg"></i></button>
-            </div>
-            <form onsubmit="handleImportContactsSubmit(event)" class="space-y-4 text-xs">
-                <div>
-                    <label class="block font-semibold mb-1.5 text-slate-700 dark:text-slate-200">1. Wybierz plik z kontaktami (.csv, .xlsx, .txt)</label>
-                    <input type="file" id="importContactsFileInput" accept=".csv,.xlsx,.xls,.txt" required class="w-full text-xs text-slate-500 file:mr-3 file:py-2 file:px-3.5 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100 border border-slate-300 dark:border-slate-600 rounded-xl p-1 dark:bg-slate-700 cursor-pointer">
-                    <p class="text-[11px] text-slate-400 mt-1">Plik powinien zawierać kolumnę z numerem telefonu (oraz opcjonalnie imię, nazwisko, email, miasto).</p>
+    <!-- Import Contacts from CSV/Excel to Group Modal Dialog with Column Mapping & Live Preview -->
+    <div id="importContactsModal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+        <div class="bg-white dark:bg-slate-800 rounded-2xl max-w-2xl w-full p-5 sm:p-6 shadow-2xl border border-slate-200 dark:border-slate-700 space-y-4 max-h-[92vh] flex flex-col">
+            <div class="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-700">
+                <div class="flex items-center gap-2.5">
+                    <div class="w-9 h-9 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold text-base">
+                        <i class="fa-solid fa-file-import"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-base text-slate-800 dark:text-white">Inteligentny Import Kontaktów</h3>
+                        <p class="text-xs text-slate-400">Obsługa plików CSV, Excel (.xlsx, .xls) oraz TXT z dopasowaniem kolumn</p>
+                    </div>
                 </div>
+                <button onclick="closeImportContactsModal()" class="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
 
-                <div>
-                    <label class="block font-semibold mb-1 text-slate-700 dark:text-slate-200">2. Przypisz zaimportowane kontakty do grupy:</label>
-                    <select id="importTargetGroupSelect" onchange="toggleNewGroupInputInImport(this.value)" class="w-full px-3.5 py-2.5 text-xs rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700 outline-none font-medium">
-                        <option value="">-- Bez przypisania do grupy (Tylko do bazy ogólnej) --</option>
-                        <option value="__NEW__">+ Utwórz nową grupę podczas importu...</option>
-                    </select>
+            <form id="importContactsForm" onsubmit="handleImportContactsSubmit(event)" class="space-y-4 overflow-y-auto flex-1 pr-1 custom-scrollbar text-xs">
+                <!-- 1. Wybór pliku i grupy -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                    <div>
+                        <label class="block font-semibold mb-1 text-slate-700 dark:text-slate-200">1. Wybierz plik z kontaktami *</label>
+                        <input type="file" id="importContactsFileInput" accept=".csv,.xlsx,.xls,.txt" required onchange="handleImportFileSelected(this)" class="w-full text-xs text-slate-500 file:mr-2.5 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100 border border-slate-300 dark:border-slate-600 rounded-xl p-1 dark:bg-slate-700 cursor-pointer">
+                        <div id="importFileStatusInfo" class="text-[11px] text-slate-400 mt-1">Obsługiwane formaty: .csv, .xlsx, .xls, .txt</div>
+                    </div>
+
+                    <div>
+                        <label class="block font-semibold mb-1 text-slate-700 dark:text-slate-200">2. Przypisz do grupy odbiorców:</label>
+                        <select id="importTargetGroupSelect" onchange="toggleNewGroupInputInImport(this.value)" class="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700 outline-none font-medium">
+                            <option value="">-- Bez grupy (Do bazy ogólnej) --</option>
+                            <option value="__NEW__">+ Utwórz nową grupę podczas importu...</option>
+                        </select>
+                    </div>
                 </div>
 
                 <div id="newGroupNameImportBox" class="hidden">
                     <label class="block font-semibold mb-1 text-slate-700 dark:text-slate-200">Nazwa nowej grupy:</label>
-                    <input type="text" id="importNewGroupNameInput" placeholder="Wpisz nazwę nowej grupy..." class="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700 outline-none">
+                    <input type="text" id="importNewGroupNameInput" placeholder="np. Klienci Sklepu Marzec 2026..." class="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700 outline-none">
                 </div>
 
-                <div class="p-3 rounded-xl bg-slate-50 dark:bg-slate-700/40 border border-slate-200 dark:border-slate-600 text-[11px] text-slate-500 space-y-1">
-                    <div class="font-bold text-slate-700 dark:text-slate-200">ℹ️ Automatyczne dopasowanie formatu:</div>
-                    <div>Numery 9-cyfrowe (PL) zostaną automatycznie uzupełnione o prefiks kraju <code>48</code>. Jeśli kontakt już istnieje w SMSAPI, zostanie automatycznie dopisany do wybranej grupy.</div>
+                <!-- 2. Sekcja mapowania kolumn (pokazuje się po wczytaniu pliku) -->
+                <div id="importMappingSection" class="hidden border border-emerald-500/20 bg-emerald-500/5 rounded-2xl p-3.5 sm:p-4 space-y-3">
+                    <div class="flex items-center justify-between flex-wrap gap-2">
+                        <div class="font-bold text-xs text-slate-800 dark:text-white flex items-center gap-2">
+                            <i class="fa-solid fa-arrows-split-up-and-left text-emerald-600 dark:text-emerald-400"></i>
+                            Mapowanie kolumn z Twojego pliku:
+                        </div>
+                        <label class="inline-flex items-center gap-1.5 text-[11px] text-slate-600 dark:text-slate-300 cursor-pointer">
+                            <input type="checkbox" id="importHasHeaders" checked onchange="handleImportHasHeadersToggle()" class="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500">
+                            <span>Pierwszy wiersz zawiera nagłówki</span>
+                        </label>
+                    </div>
+
+                    <p class="text-[11px] text-slate-500 dark:text-slate-400">
+                        Aplikacja automatycznie dopasowała wykryte kolumny. Możesz ręcznie wybrać lub zmienić przypisanie każdego pola:
+                    </p>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                        <!-- Telefon (Wymagane) -->
+                        <div class="bg-white dark:bg-slate-800 p-2.5 rounded-xl border border-slate-200 dark:border-slate-700">
+                            <label class="block font-bold mb-1 text-slate-700 dark:text-slate-200 flex items-center justify-between">
+                                <span><i class="fa-solid fa-phone text-emerald-500 mr-1"></i> Numer telefonu</span>
+                                <span class="text-[10px] text-rose-500 font-bold uppercase">Wymagane</span>
+                            </label>
+                            <select id="mapPhone" required onchange="updateImportLivePreview()" class="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-700 font-medium outline-none"></select>
+                        </div>
+
+                        <!-- Imię -->
+                        <div class="bg-white dark:bg-slate-800 p-2.5 rounded-xl border border-slate-200 dark:border-slate-700">
+                            <label class="block font-semibold mb-1 text-slate-700 dark:text-slate-200">
+                                <i class="fa-solid fa-user text-blue-500 mr-1"></i> Imię (First Name)
+                            </label>
+                            <select id="mapFirstName" onchange="updateImportLivePreview()" class="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-700 outline-none"></select>
+                        </div>
+
+                        <!-- Nazwisko -->
+                        <div class="bg-white dark:bg-slate-800 p-2.5 rounded-xl border border-slate-200 dark:border-slate-700">
+                            <label class="block font-semibold mb-1 text-slate-700 dark:text-slate-200">
+                                <i class="fa-solid fa-user-group text-indigo-500 mr-1"></i> Nazwisko (Last Name)
+                            </label>
+                            <select id="mapLastName" onchange="updateImportLivePreview()" class="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-700 outline-none"></select>
+                        </div>
+
+                        <!-- E-mail -->
+                        <div class="bg-white dark:bg-slate-800 p-2.5 rounded-xl border border-slate-200 dark:border-slate-700">
+                            <label class="block font-semibold mb-1 text-slate-700 dark:text-slate-200">
+                                <i class="fa-solid fa-envelope text-amber-500 mr-1"></i> Adres E-mail
+                            </label>
+                            <select id="mapEmail" onchange="updateImportLivePreview()" class="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-700 outline-none"></select>
+                        </div>
+
+                        <!-- Miasto -->
+                        <div class="bg-white dark:bg-slate-800 p-2.5 rounded-xl border border-slate-200 dark:border-slate-700">
+                            <label class="block font-semibold mb-1 text-slate-700 dark:text-slate-200">
+                                <i class="fa-solid fa-city text-purple-500 mr-1"></i> Miasto (City)
+                            </label>
+                            <select id="mapCity" onchange="updateImportLivePreview()" class="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-700 outline-none"></select>
+                        </div>
+
+                        <!-- Płeć -->
+                        <div class="bg-white dark:bg-slate-800 p-2.5 rounded-xl border border-slate-200 dark:border-slate-700">
+                            <label class="block font-semibold mb-1 text-slate-700 dark:text-slate-200">
+                                <i class="fa-solid fa-venus-mars text-rose-500 mr-1"></i> Płeć (Gender)
+                            </label>
+                            <select id="mapGender" onchange="updateImportLivePreview()" class="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-700 outline-none"></select>
+                        </div>
+                    </div>
+
+                    <!-- 3. Interaktywny podgląd na żywo (Live Preview Table) -->
+                    <div class="space-y-1.5 pt-1">
+                        <div class="font-bold text-[11px] text-slate-700 dark:text-slate-300 flex items-center justify-between">
+                            <span><i class="fa-solid fa-table-list mr-1 text-emerald-500"></i> Podgląd danych po zmapowaniu (pierwsze wiersze):</span>
+                            <span id="importTotalRowsBadge" class="text-[10px] bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 px-2 py-0.5 rounded-full font-bold"></span>
+                        </div>
+                        <div class="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+                            <table class="w-full text-[11px] text-left border-collapse">
+                                <thead class="bg-slate-50 dark:bg-slate-700/50 text-slate-500 border-b border-slate-200 dark:border-slate-700">
+                                    <tr>
+                                        <th class="p-2 font-semibold">Telefon</th>
+                                        <th class="p-2 font-semibold">Imię</th>
+                                        <th class="p-2 font-semibold">Nazwisko</th>
+                                        <th class="p-2 font-semibold">E-mail</th>
+                                        <th class="p-2 font-semibold">Miasto</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="importPreviewTableBody" class="divide-y divide-slate-100 dark:divide-slate-700">
+                                    <!-- Dynamic rows -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Opcje formatowania -->
+                    <div class="flex items-center gap-4 text-[11px] text-slate-600 dark:text-slate-300 pt-1">
+                        <label class="inline-flex items-center gap-1.5 cursor-pointer">
+                            <input type="checkbox" id="importAutoPrefix" checked class="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500">
+                            <span>Automatycznie dodaj <code>+48</code> do 9-cyfrowych numerów PL</span>
+                        </label>
+                    </div>
                 </div>
 
-                <div class="flex gap-2 pt-1">
-                    <button type="button" onclick="closeImportContactsModal()" class="flex-1 py-2.5 border rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700 font-semibold">Anuluj</button>
+                <div class="flex gap-2 pt-2 border-t border-slate-100 dark:border-slate-700">
+                    <button type="button" onclick="closeImportContactsModal()" class="flex-1 py-2.5 border rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700 font-semibold transition-colors">Anuluj</button>
                     <button type="submit" id="btnImportContactsSubmit" class="flex-1 py-2.5 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 shadow transition-colors flex items-center justify-center gap-1.5">
                         <i class="fa-solid fa-cloud-arrow-up"></i> Rozpocznij import
                     </button>
@@ -3127,14 +3235,28 @@
             }
         }
 
-        // CSV Import to Group
+        // ==========================================================
+        // CSV / Excel Contacts Import with Column Mapping & Live Preview
+        // ==========================================================
+        let parsedImportFileData = null;
+
         function openImportContactsModal() {
-            document.getElementById('importContactsFileInput').value = '';
+            parsedImportFileData = null;
+            const fileInput = document.getElementById('importContactsFileInput');
+            if (fileInput) fileInput.value = '';
             document.getElementById('importNewGroupNameInput').value = '';
             document.getElementById('newGroupNameImportBox')?.classList.add('hidden');
+            document.getElementById('importMappingSection')?.classList.add('hidden');
+            const statusInfo = document.getElementById('importFileStatusInfo');
+            if (statusInfo) statusInfo.innerHTML = 'Obsługiwane formaty: .csv, .xlsx, .xls, .txt';
+            const tbody = document.getElementById('importPreviewTableBody');
+            if (tbody) tbody.innerHTML = '';
+            const badge = document.getElementById('importTotalRowsBadge');
+            if (badge) badge.textContent = '';
             document.getElementById('importContactsModal')?.classList.remove('hidden');
             fetchContactGroups();
         }
+
         function closeImportContactsModal() {
             document.getElementById('importContactsModal')?.classList.add('hidden');
         }
@@ -3149,6 +3271,146 @@
             }
         }
 
+        function handleImportFileSelected(input) {
+            if (input.files && input.files.length > 0) {
+                parseUploadedFile();
+            }
+        }
+
+        function handleImportHasHeadersToggle() {
+            const fileInput = document.getElementById('importContactsFileInput');
+            if (fileInput && fileInput.files && fileInput.files.length > 0) {
+                parseUploadedFile();
+            }
+        }
+
+        async function parseUploadedFile() {
+            const fileInput = document.getElementById('importContactsFileInput');
+            if (!fileInput || !fileInput.files || fileInput.files.length === 0) return;
+
+            const file = fileInput.files[0];
+            const hasHeaders = document.getElementById('importHasHeaders')?.checked ?? true;
+            const statusInfo = document.getElementById('importFileStatusInfo');
+
+            statusInfo.innerHTML = `<span class="text-blue-500 font-semibold"><i class="fa-solid fa-spinner fa-spin mr-1"></i> Analizowanie pliku "${file.name}"...</span>`;
+
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('has_headers', hasHeaders ? '1' : '0');
+
+            try {
+                const res = await fetch('/api/contacts/parse-file', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await res.json();
+
+                if (!data.success) {
+                    statusInfo.innerHTML = `<span class="text-rose-500 font-semibold"><i class="fa-solid fa-circle-exclamation mr-1"></i> Błąd: ${data.error}</span>`;
+                    document.getElementById('importMappingSection')?.classList.add('hidden');
+                    return;
+                }
+
+                parsedImportFileData = data;
+                statusInfo.innerHTML = `<span class="text-emerald-600 dark:text-emerald-400 font-bold"><i class="fa-solid fa-circle-check mr-1"></i> Wczytano "${data.filename}" (Wykryto ${data.total_rows} rekordów, ${data.headers.length} kolumn)</span>`;
+                const badge = document.getElementById('importTotalRowsBadge');
+                if (badge) badge.textContent = `${data.total_rows} rekordów`;
+
+                // Populate column mapping selects
+                populateMappingSelect('mapPhone', data.headers, data.sample_rows, data.suggested_mapping.phone, true);
+                populateMappingSelect('mapFirstName', data.headers, data.sample_rows, data.suggested_mapping.first_name, false);
+                populateMappingSelect('mapLastName', data.headers, data.sample_rows, data.suggested_mapping.last_name, false);
+                populateMappingSelect('mapEmail', data.headers, data.sample_rows, data.suggested_mapping.email, false);
+                populateMappingSelect('mapCity', data.headers, data.sample_rows, data.suggested_mapping.city, false);
+                populateMappingSelect('mapGender', data.headers, data.sample_rows, data.suggested_mapping.gender, false);
+
+                document.getElementById('importMappingSection')?.classList.remove('hidden');
+                updateImportLivePreview();
+            } catch (err) {
+                statusInfo.innerHTML = `<span class="text-rose-500 font-semibold"><i class="fa-solid fa-circle-exclamation mr-1"></i> Błąd: ${err.message}</span>`;
+                document.getElementById('importMappingSection')?.classList.add('hidden');
+            }
+        }
+
+        function populateMappingSelect(selectId, headers, sampleRows, suggestedValue, isRequired) {
+            const sel = document.getElementById(selectId);
+            if (!sel) return;
+
+            let html = '';
+            if (!isRequired) {
+                html += `<option value="">-- Nie przypisuj / Pomiń to pole --</option>`;
+            } else {
+                html += `<option value="">-- Wybierz kolumnę z numerem --</option>`;
+            }
+
+            headers.forEach((h, idx) => {
+                let sampleVal = '';
+                if (sampleRows && sampleRows.length > 0 && sampleRows[0][idx] !== undefined) {
+                    sampleVal = String(sampleRows[0][idx]).trim();
+                    if (sampleVal.length > 20) sampleVal = sampleVal.substring(0, 18) + '...';
+                }
+                const sampleText = sampleVal ? ` (np. "${sampleVal}")` : '';
+                const isSelected = (h === suggestedValue) ? 'selected' : '';
+                html += `<option value="${h}" ${isSelected}>Kolumna [${h}]${sampleText}</option>`;
+            });
+
+            sel.innerHTML = html;
+        }
+
+        function updateImportLivePreview() {
+            if (!parsedImportFileData || !parsedImportFileData.sample_rows) return;
+
+            const tbody = document.getElementById('importPreviewTableBody');
+            if (!tbody) return;
+
+            const headers = parsedImportFileData.headers || [];
+            const sampleRows = parsedImportFileData.sample_rows.slice(0, 4);
+
+            const phoneCol = document.getElementById('mapPhone')?.value;
+            const fnCol = document.getElementById('mapFirstName')?.value;
+            const lnCol = document.getElementById('mapLastName')?.value;
+            const emailCol = document.getElementById('mapEmail')?.value;
+            const cityCol = document.getElementById('mapCity')?.value;
+            const autoPrefix = document.getElementById('importAutoPrefix')?.checked ?? true;
+
+            const phoneIdx = headers.indexOf(phoneCol);
+            const fnIdx = headers.indexOf(fnCol);
+            const lnIdx = headers.indexOf(lnCol);
+            const emailIdx = headers.indexOf(emailCol);
+            const cityIdx = headers.indexOf(cityCol);
+
+            if (sampleRows.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" class="p-3 text-center text-slate-400">Brak wierszy do wyświetlenia</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = sampleRows.map(row => {
+                let rawPhone = phoneIdx >= 0 && row[phoneIdx] ? String(row[phoneIdx]).trim() : '';
+                let cleanPhone = rawPhone.replace(/[^0-9+]/g, '');
+                if (autoPrefix && cleanPhone.length === 9 && !cleanPhone.startsWith('+') && !cleanPhone.startsWith('48')) {
+                    cleanPhone = '48' + cleanPhone;
+                }
+                const phoneDisplay = cleanPhone 
+                    ? `<span class="font-bold text-emerald-600 dark:text-emerald-400">${cleanPhone}</span>` 
+                    : `<span class="italic text-rose-400 font-medium">Brak / Niepoprawny</span>`;
+
+                const fnVal = fnIdx >= 0 && row[fnIdx] ? row[fnIdx] : '<span class="text-slate-300 dark:text-slate-600">—</span>';
+                const lnVal = lnIdx >= 0 && row[lnIdx] ? row[lnIdx] : '<span class="text-slate-300 dark:text-slate-600">—</span>';
+                const emailVal = emailIdx >= 0 && row[emailIdx] ? row[emailIdx] : '<span class="text-slate-300 dark:text-slate-600">—</span>';
+                const cityVal = cityIdx >= 0 && row[cityIdx] ? row[cityIdx] : '<span class="text-slate-300 dark:text-slate-600">—</span>';
+
+                return `
+                    <tr class="hover:bg-slate-50/50 dark:hover:bg-slate-700/30">
+                        <td class="p-2 font-mono">${phoneDisplay}</td>
+                        <td class="p-2 font-medium">${fnVal}</td>
+                        <td class="p-2 font-medium">${lnVal}</td>
+                        <td class="p-2 text-slate-500">${emailVal}</td>
+                        <td class="p-2 text-slate-500">${cityVal}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
         async function handleImportContactsSubmit(e) {
             e.preventDefault();
             const fileInput = document.getElementById('importContactsFileInput');
@@ -3157,11 +3419,32 @@
                 return;
             }
 
+            const phoneCol = document.getElementById('mapPhone')?.value;
+            if (!phoneCol) {
+                Swal.fire({ icon: 'warning', title: 'Wybierz kolumnę z telefonem', text: 'Musisz wskazać, która kolumna zawiera numery telefonów odbiorców.' });
+                return;
+            }
+
             const groupSelect = document.getElementById('importTargetGroupSelect').value;
             const newGroupName = document.getElementById('importNewGroupNameInput').value.trim();
+            const hasHeaders = document.getElementById('importHasHeaders')?.checked ?? true;
+            const autoPrefix = document.getElementById('importAutoPrefix')?.checked ?? true;
+
+            const mapping = {
+                phone: phoneCol,
+                first_name: document.getElementById('mapFirstName')?.value || '',
+                last_name: document.getElementById('mapLastName')?.value || '',
+                email: document.getElementById('mapEmail')?.value || '',
+                city: document.getElementById('mapCity')?.value || '',
+                gender: document.getElementById('mapGender')?.value || ''
+            };
 
             const formData = new FormData();
             formData.append('file', fileInput.files[0]);
+            formData.append('mapping', JSON.stringify(mapping));
+            formData.append('has_headers', hasHeaders ? '1' : '0');
+            formData.append('auto_prefix_48', autoPrefix ? '1' : '0');
+
             if (groupSelect === '__NEW__' && newGroupName) {
                 formData.append('new_group_name', newGroupName);
             } else if (groupSelect && groupSelect !== '__NEW__') {
@@ -3186,9 +3469,9 @@
                         icon: 'success',
                         title: 'Import zakończony sukcesem!',
                         html: `
-                            <div class="text-left text-xs space-y-1 mt-2">
-                                <div><b>Pomyślnie zaimportowano:</b> <span class="text-emerald-600 font-bold">${data.imported_count} kontaktów</span></div>
-                                <div><b>Wszystkich znalezionych w pliku:</b> ${data.total_found}</div>
+                            <div class="text-left text-xs space-y-1.5 mt-2 p-3 bg-slate-50 dark:bg-slate-700/50 rounded-xl border border-slate-200 dark:border-slate-600">
+                                <div><b class="text-slate-700 dark:text-slate-200">Pomyślnie zaimportowano:</b> <span class="text-emerald-600 font-bold">${data.imported_count} kontaktów</span></div>
+                                <div><b class="text-slate-700 dark:text-slate-200">Wszystkich rekordów w pliku:</b> ${data.total_found}</div>
                                 ${data.errors_count > 0 ? `<div class="text-amber-600">Pominięto / istniało wcześniej: ${data.errors_count}</div>` : ''}
                             </div>
                         `
