@@ -2261,7 +2261,7 @@ def delete_template(id):
 
 
 # ==========================================================
-# Heartbeat & Auto-Shutdown on Browser Close
+# Heartbeat & Auto-Shutdown on Browser Close (Safe Watchdog)
 # ==========================================================
 _last_heartbeat = time.time()
 _auto_shutdown_enabled = os.environ.get('AUTO_SHUTDOWN', '1') == '1'
@@ -2276,33 +2276,18 @@ def heartbeat_ping():
 
 @app.route('/api/browser-closing', methods=['GET', 'POST'])
 def browser_closing():
-    """
-    Beacon endpoint triggered by browser when all tabs/windows are closed.
-    Gives a 3.5s grace period in case user simply reloaded the page (F5).
-    """
-    def check_and_shutdown():
-        time.sleep(3.5)
-        if time.time() - _last_heartbeat >= 3.0:
-            print("[AUTO-SHUTDOWN] Wszystkie okna przeglądarki zostały zamknięte. Zamykanie procesów...")
-            if sys.platform == 'win32':
-                try:
-                    os.system('taskkill /f /im ngrok.exe >nul 2>&1')
-                except Exception:
-                    pass
-            os._exit(0)
-
-    threading.Thread(target=check_and_shutdown, daemon=True).start()
-    return jsonify({'success': True, 'message': 'Shutdown scheduled'})
+    # Keep route for beacon compatibility, watchdog loop handles actual safe timeout
+    return jsonify({'success': True, 'message': 'Beacon received'})
 
 
 def _heartbeat_watchdog_loop():
-    # Initial grace period (25s) after server boot for the user to open browser
-    time.sleep(25.0)
+    # Generous initial grace period (45s) after server boot for browser to open
+    time.sleep(45.0)
     while True:
         time.sleep(5.0)
-        # If no ping received for > 20 seconds, browser is closed!
-        if _auto_shutdown_enabled and (time.time() - _last_heartbeat > 20.0):
-            print("[AUTO-SHUTDOWN] Brak aktywnej karty przeglądarki przez ponad 20 sekund. Zamykanie...")
+        # Safe 90 seconds timeout of total silence (ensures F5 reloads never kill the server)
+        if _auto_shutdown_enabled and (time.time() - _last_heartbeat > 90.0):
+            print("[AUTO-SHUTDOWN] Brak aktywnej karty przeglądarki przez ponad 90 sekund. Zamykanie...")
             if sys.platform == 'win32':
                 try:
                     os.system('taskkill /f /im ngrok.exe >nul 2>&1')
