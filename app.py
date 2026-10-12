@@ -1727,15 +1727,31 @@ def _parse_contacts_file_raw(file_bytes: bytes, filename: str, has_headers: bool
     }
 
 
+def clean_phone_number(val: Any, auto_prefix: bool = True) -> str:
+    if val is None:
+        return ''
+    s = str(val).strip()
+    if s.endswith('.0'):
+        s = s[:-2]
+    s = re.sub(r'[^\d+]', '', s)
+    if s.startswith('00'):
+        s = s[2:]
+    if s.startswith('+'):
+        s = s[1:]
+    if auto_prefix and len(s) == 9 and not s.startswith('48'):
+        s = '48' + s
+    return s
+
+
 def normalize_gender(g_str: Optional[str]) -> Optional[str]:
     if not g_str:
         return None
     g = str(g_str).strip().lower()
-    if g in ['m', 'mezczyzna', 'mężczyzna', 'pan', 'male', 'chłopak', 'facet']:
+    if g in ['m', 'mezczyzna', 'mężczyzna', 'pan', 'male', 'chłopak', 'facet', '1']:
         return 'male'
-    if g in ['k', 'kobieta', 'pani', 'female', 'f', 'dziewczyna']:
+    if g in ['k', 'kobieta', 'pani', 'female', 'f', 'dziewczyna', '2']:
         return 'female'
-    return None
+    return 'undetermined'
 
 
 def normalize_birthday(b_str: Optional[str]) -> Optional[str]:
@@ -1815,7 +1831,7 @@ def import_contacts_csv():
         if new_group_name and not group_id:
             try:
                 g_res = client.contacts.create_group(name=new_group_name)
-                group_id = getattr(g_res, 'id', '')
+                group_id = getattr(g_res, 'id', '') or getattr(g_res, 'group_id', '')
             except Exception as ge:
                 print("Create group error during import:", ge)
 
@@ -1856,19 +1872,15 @@ def import_contacts_csv():
         if phone_idx is None:
             return jsonify({'success': False, 'error': 'Nie wybrano kolumny z numerem telefonu.'}), 400
 
-        imported_count = 0
-        errors = []
-
+        # Pre-process rows into clean payload items
+        prepared_items = []
         for row in data_rows:
             if not row:
                 continue
             raw_phone = row[phone_idx] if phone_idx < len(row) else ''
-            p_clean = re.sub(r'[^0-9+]', '', str(raw_phone).strip())
+            p_clean = clean_phone_number(raw_phone, auto_prefix=auto_prefix)
 
-            if auto_prefix and len(p_clean) == 9 and not p_clean.startswith(('+', '48')):
-                p_clean = '48' + p_clean
-
-            if len(p_clean) < 7:
+            if len(p_clean) < 7 or len(p_clean) > 16:
                 continue
 
             raw_fn = row[fn_idx].strip() if fn_idx is not None and fn_idx < len(row) else ''
@@ -1878,43 +1890,95 @@ def import_contacts_csv():
             raw_gender = normalize_gender(row[gender_idx].strip() if gender_idx is not None and gender_idx < len(row) else None)
             raw_bday = normalize_birthday(row[bday_idx].strip() if bday_idx is not None and bday_idx < len(row) else None)
 
-            contact_payload = {
-                'phone_number': p_clean,
-                'first_name': raw_fn or None,
-                'last_name': raw_ln or None,
-                'email': raw_em or None,
-                'gender': raw_gender or None,
-                'birthday_date': raw_bday or None
-            }
+            payload = {'phone_number': p_clean}
+            if raw_fn:
+                payload['first_name'] = raw_fn
+            if raw_ln:
+                payload['last_name'] = raw_ln
+            if raw_em and '@' in raw_em:
+                payload['email'] = raw_em
+            if raw_gender in ['male', 'female', 'undetermined']:
+                payload['gender'] = raw_gender
+            if raw_bday:
+                payload['birthday_date'] = raw_bday
             if raw_city:
-                contact_payload['description'] = f"Miasto: {raw_city}"
+                payload['description'] = f"Miasto: {raw_city}"
 
+            prepared_items.append({
+                'phone': p_clean,
+                'first_name': raw_fn,
+                'last_name': raw_ln,
+                'city': raw_city,
+                'email': raw_em,
+                'payload': payload
+            })
+
+        if not prepared_items:
+            return jsonify({'success': False, 'error': 'Nie znaleziono żadnych prawidłowych numerów telefonów w wybranej kolumnie.'}), 400
+
+        imported_count = 0
+        errors = []
+
+        def process_single_contact(item):
+            p = item['phone']
+            payload = item['payload']
+            cid = None
+
+            # 1. Try to create contact in SMSAPI
             try:
-                res = client.contacts.create_contact(**contact_payload)
+                res = client.contacts.create_contact(**payload)
                 cid = getattr(res, 'id', '')
-                if group_id and cid:
-                    try:
-                        client.contacts.pin_contact_to_group(group_id=group_id, contact_id=cid)
-                    except Exception:
-                        pass
-                imported_count += 1
             except Exception as ce:
-                # If contact already exists in SMSAPI, pin to group if specified
-                if group_id and ('exists' in str(ce).lower() or '400' in str(ce) or 'conflict' in str(ce).lower()):
-                    try:
-                        search_res = client.contacts.list_contacts(phone_number=p_clean, limit=1)
-                        for existing_c in search_res:
-                            client.contacts.pin_contact_to_group(group_id=group_id, contact_id=existing_c.id)
-                            imported_count += 1
-                            break
-                    except Exception:
-                        pass
-                errors.append(f"{p_clean}: {str(ce)}")
+                ce_str = str(ce)
+                # If contact already exists in SMSAPI, try to find existing contact ID
+                try:
+                    search_res = client.contacts.list_contacts(q=p, limit=1)
+                    for existing_c in search_res:
+                        cid = getattr(existing_c, 'id', '')
+                        break
+                except Exception:
+                    pass
+
+                if not cid and not ('exists' in ce_str.lower() or '1004' in ce_str or 'conflict' in ce_str.lower()):
+                    return False, f"{p}: {ce_str}"
+
+            # 2. Pin to group if specified and we have cid
+            if group_id and cid:
+                try:
+                    client.contacts.pin_contact_to_group(group_id=group_id, contact_id=cid)
+                except Exception:
+                    pass
+
+            # 3. Save / update in local sqlite database
+            try:
+                with get_db() as conn:
+                    conn.execute('''
+                        INSERT OR REPLACE INTO local_contacts (phone_number, first_name, last_name, group_name, custom1, custom2)
+                        VALUES (?, ?, ?, ?, ?, ?)
+                    ''', (p, item['first_name'], item['last_name'], group_id or 'Domyślna', item['city'], item['email']))
+            except Exception:
+                pass
+
+            return True, None
+
+        # Execute concurrent worker pool for blazingly fast import
+        max_workers = min(12, len(prepared_items))
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = [executor.submit(process_single_contact, item) for item in prepared_items]
+            for future in as_completed(futures):
+                try:
+                    success, err = future.result()
+                    if success:
+                        imported_count += 1
+                    elif err:
+                        errors.append(err)
+                except Exception as ex:
+                    errors.append(str(ex))
 
         return jsonify({
             'success': True,
             'message': f'Pomyślnie zaimportowano {imported_count} kontaktów do SMSAPI!',
-            'total_found': len(data_rows),
+            'total_found': len(prepared_items),
             'imported_count': imported_count,
             'errors_count': len(errors),
             'group_id': group_id

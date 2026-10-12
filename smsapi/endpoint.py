@@ -45,7 +45,7 @@ def bind_api_endpoint(**config):
             compiled_parameters = {}
 
             for key, val in self.parameters.items():
-                if key in self.accept_parameters:
+                if key in self.accept_parameters and val is not None:
                     compiled_parameters[key] = convert_to_utf8_str(val)
 
             if self.force_parameters:
