@@ -1313,21 +1313,46 @@ import xml.etree.ElementTree as ET
 
 def extract_rows_from_html_str(html_text: str) -> List[List[str]]:
     rows = []
-    # Find all table rows <tr...>...</tr> (case insensitive, dotall)
-    tr_matches = re.findall(r'<tr[^>]*>(.*?)</tr>', html_text, re.IGNORECASE | re.DOTALL)
-    for tr_content in tr_matches:
+    # Split by <tr tag (handles both standard HTML and unclosed Optima <TR> tags)
+    tr_chunks = re.split(r'<tr[^>]*>', html_text, flags=re.IGNORECASE)
+    for chunk in tr_chunks[1:]:
+        chunk = re.split(r'</tr>|</table>', chunk, flags=re.IGNORECASE)[0]
+        td_chunks = re.split(r'<t[dh][^>]*>', chunk, flags=re.IGNORECASE)
         cells = []
-        cell_matches = re.findall(r'<t[dh][^>]*>(.*?)</t[dh]>', tr_content, re.IGNORECASE | re.DOTALL)
-        for cell_html in cell_matches:
-            # Strip inner HTML tags like <span>, <font>, <b>, etc.
-            text = re.sub(r'<[^>]+>', ' ', cell_html)
-            text = html.unescape(text)
-            text = text.replace('\xa0', ' ')
-            text = re.sub(r'\s+', ' ', text).strip()
-            cells.append(text)
+        for cell in td_chunks[1:]:
+            cell_clean = re.split(r'</t[dh]>', cell, flags=re.IGNORECASE)[0]
+            cell_clean = re.sub(r'<[^>]+>', ' ', cell_clean)
+            cell_clean = html.unescape(cell_clean)
+            cell_clean = cell_clean.replace('\xa0', ' ')
+            cell_clean = re.sub(r'\s+', ' ', cell_clean).strip()
+            cells.append(cell_clean)
         if any(cells):
             rows.append(cells)
     return rows
+
+
+def parse_delimited_text_robust(text_content: str) -> List[List[str]]:
+    for delim in [';', '\t', '|', ',']:
+        rows = []
+        for line in text_content.splitlines():
+            line_str = line.strip()
+            if not line_str:
+                continue
+            try:
+                reader = csv.reader([line_str], delimiter=delim, quoting=csv.QUOTE_MINIMAL)
+                row = next(reader)
+            except Exception:
+                row = [c.strip().strip('"').strip("'") for c in line_str.split(delim)]
+            if any(row):
+                rows.append([c.strip() for c in row])
+        if rows and len(rows) > 1 and max(len(r) for r in rows) > 1:
+            return rows
+
+    # Fallback: single column
+    lines = [l.strip() for l in text_content.splitlines() if l.strip()]
+    if lines:
+        return [[l] for l in lines]
+    return []
 
 
 def extract_rows_from_xml_spreadsheet(xml_bytes: bytes) -> List[List[str]]:
@@ -1413,7 +1438,53 @@ def detect_header_row_index(raw_rows: List[List[str]]) -> int:
 
 
 def extract_raw_rows_from_file(file_bytes: bytes, filename: str) -> List[List[str]]:
-    # 1. Decode as text (handles UTF-16, UTF-8, CP1250, HTML, XML, MHTML)
+    # 1. Check binary signatures (OpenXML .xlsx / ZIP)
+    if file_bytes.startswith(b'PK\x03\x04'):
+        try:
+            import openpyxl
+            wb = openpyxl.load_workbook(io.BytesIO(file_bytes), data_only=True)
+            best_sheet_rows = []
+            for ws in wb.worksheets:
+                sheet_rows = []
+                for row in ws.iter_rows(values_only=True):
+                    if row is None:
+                        continue
+                    str_row = [str(c).strip() if c is not None else '' for c in row]
+                    if any(str_row):
+                        sheet_rows.append(str_row)
+                if len(sheet_rows) > len(best_sheet_rows):
+                    best_sheet_rows = sheet_rows
+            if best_sheet_rows:
+                return best_sheet_rows
+        except Exception:
+            pass
+
+    # 2. Check binary signatures (OLE2 Compound File / BIFF8 .xls)
+    if (file_bytes.startswith(b'\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1') or
+            file_bytes.startswith(b'\x09\x00') or
+            file_bytes.startswith(b'\x09\x02') or
+            file_bytes.startswith(b'\x09\x04') or
+            file_bytes.startswith(b'\x09\x08')):
+        try:
+            import xlrd
+            wb = xlrd.open_workbook(file_contents=file_bytes)
+            best_sheet_rows = []
+            for sheet_idx in range(wb.nsheets):
+                ws = wb.sheet_by_index(sheet_idx)
+                sheet_rows = []
+                for rx in range(ws.nrows):
+                    row = [str(ws.cell_value(rx, cx)).strip() for cx in range(ws.ncols)]
+                    row = [re.sub(r'\.0$', '', c) if re.match(r'^\d+\.0$', c) else c for c in row]
+                    if any(row):
+                        sheet_rows.append(row)
+                if len(sheet_rows) > len(best_sheet_rows):
+                    best_sheet_rows = sheet_rows
+            if best_sheet_rows:
+                return best_sheet_rows
+        except Exception:
+            pass
+
+    # 3. Decode as text (handles UTF-16, UTF-8, CP1250, MHTML, HTML, XML)
     text_content = decode_text_bytes(file_bytes)
 
     # Check for MHTML multipart archives
@@ -1439,7 +1510,7 @@ def extract_raw_rows_from_file(file_bytes: bytes, filename: str) -> List[List[st
         if rows:
             return rows
 
-    # 2. Try xlrd (binary .xls BIFF8 Excel 97-2003) - scan all sheets
+    # 4. Fallback: try xlrd
     try:
         import xlrd
         wb = xlrd.open_workbook(file_contents=file_bytes)
@@ -1459,38 +1530,9 @@ def extract_raw_rows_from_file(file_bytes: bytes, filename: str) -> List[List[st
     except Exception:
         pass
 
-    # 3. Try openpyxl (standard .xlsx / .xlsm format) - scan all sheets
-    try:
-        import openpyxl
-        wb = openpyxl.load_workbook(io.BytesIO(file_bytes), data_only=True)
-        best_sheet_rows = []
-        for ws in wb.worksheets:
-            sheet_rows = []
-            for row in ws.iter_rows(values_only=True):
-                if row is None:
-                    continue
-                str_row = [str(c).strip() if c is not None else '' for c in row]
-                if any(str_row):
-                    sheet_rows.append(str_row)
-            if len(sheet_rows) > len(best_sheet_rows):
-                best_sheet_rows = sheet_rows
-        if best_sheet_rows:
-            return best_sheet_rows
-    except Exception:
-        pass
-
-    # 4. Fallback: CSV / Delimited plain text
+    # 5. Fallback: Delimited plain text / CSV
     if text_content:
-        for delim in [';', '\t', '|', ',']:
-            reader = csv.reader(io.StringIO(text_content), delimiter=delim)
-            rows = []
-            for r in reader:
-                if r and any(c.strip() for c in r):
-                    rows.append([c.strip() for c in r])
-            if rows and len(rows) > 1 and len(rows[0]) > 1:
-                return rows
-        reader = csv.reader(io.StringIO(text_content))
-        rows = [r for r in reader if r and any(c.strip() for c in r)]
+        rows = parse_delimited_text_robust(text_content)
         if rows:
             return rows
 
