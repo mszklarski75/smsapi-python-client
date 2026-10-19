@@ -1920,53 +1920,84 @@ def import_contacts_csv():
         if not prepared_items:
             return jsonify({'success': False, 'error': 'Nie znaleziono żadnych prawidłowych numerów telefonów w wybranej kolumnie.'}), 400
 
+        # Pre-fetch existing SMSAPI contacts to avoid redundant lookups
+        existing_contacts_map = {}
+        try:
+            existing_res = client.contacts.list_contacts(limit=250)
+            for ec in existing_res:
+                ec_id = getattr(ec, 'id', '')
+                ec_phone = str(getattr(ec, 'phone_number', '')).strip()
+                if ec_id and ec_phone:
+                    clean_ec = clean_phone_number(ec_phone, auto_prefix=False)
+                    if clean_ec:
+                        existing_contacts_map[clean_ec] = ec_id
+                        if clean_ec.startswith('48') and len(clean_ec) == 11:
+                            existing_contacts_map[clean_ec[2:]] = ec_id
+                        elif len(clean_ec) == 9:
+                            existing_contacts_map['48' + clean_ec] = ec_id
+        except Exception:
+            pass
+
         imported_count = 0
         errors = []
 
         def process_single_contact(item):
             p = item['phone']
             payload = item['payload']
-            cid = None
+            cid = existing_contacts_map.get(p)
 
-            # 1. Try to create contact in SMSAPI
+            # 1. If already known in SMSAPI, pin to group if specified
+            if cid:
+                if group_id:
+                    try:
+                        client.contacts.pin_contact_to_group(group_id=group_id, contact_id=cid)
+                    except Exception:
+                        pass
+                return True, None
+
+            # 2. Try to create contact in SMSAPI
             try:
                 res = client.contacts.create_contact(**payload)
                 cid = getattr(res, 'id', '')
+                if group_id and cid:
+                    try:
+                        client.contacts.pin_contact_to_group(group_id=group_id, contact_id=cid)
+                    except Exception:
+                        pass
+                return True, None
             except Exception as ce:
                 ce_str = str(ce)
-                # If contact already exists in SMSAPI, try to find existing contact ID
-                try:
-                    search_res = client.contacts.list_contacts(q=p, limit=1)
-                    for existing_c in search_res:
-                        cid = getattr(existing_c, 'id', '')
-                        break
-                except Exception:
-                    pass
+                # Search by phone number variants if contact already existed
+                search_queries = [p]
+                if p.startswith('48') and len(p) == 11:
+                    search_queries.append(p[2:])
+                elif len(p) == 9:
+                    search_queries.append('48' + p)
 
-                if not cid and not ('exists' in ce_str.lower() or '1004' in ce_str or 'conflict' in ce_str.lower()):
-                    return False, f"{p}: {ce_str}"
+                for sq in search_queries:
+                    try:
+                        search_res = client.contacts.list_contacts(q=sq, limit=3)
+                        for existing_c in search_res:
+                            cid = getattr(existing_c, 'id', '')
+                            if cid:
+                                break
+                        if cid:
+                            break
+                    except Exception:
+                        pass
 
-            # 2. Pin to group if specified and we have cid
-            if group_id and cid:
-                try:
-                    client.contacts.pin_contact_to_group(group_id=group_id, contact_id=cid)
-                except Exception:
-                    pass
+                if cid:
+                    if group_id:
+                        try:
+                            client.contacts.pin_contact_to_group(group_id=group_id, contact_id=cid)
+                        except Exception:
+                            pass
+                    return True, None
 
-            # 3. Save / update in local sqlite database
-            try:
-                with get_db() as conn:
-                    conn.execute('''
-                        INSERT OR REPLACE INTO local_contacts (phone_number, first_name, last_name, group_name, custom1, custom2)
-                        VALUES (?, ?, ?, ?, ?, ?)
-                    ''', (p, item['first_name'], item['last_name'], group_id or 'Domyślna', item['city'], item['email']))
-            except Exception:
-                pass
+                return False, f"{p}: {ce_str}"
 
-            return True, None
-
-        # Execute concurrent worker pool for blazingly fast import
-        max_workers = min(12, len(prepared_items))
+        # Execute concurrent worker pool for blazingly fast parallel import
+        max_workers = min(20, len(prepared_items))
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             futures = [executor.submit(process_single_contact, item) for item in prepared_items]
             for future in as_completed(futures):
@@ -1978,6 +2009,16 @@ def import_contacts_csv():
                         errors.append(err)
                 except Exception as ex:
                     errors.append(str(ex))
+
+        # Single batch write to local SQLite database (zero lock contention)
+        try:
+            with get_db() as conn:
+                conn.executemany('''
+                    INSERT OR REPLACE INTO local_contacts (phone_number, first_name, last_name, group_name, custom1, custom2)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                ''', [(item['phone'], item['first_name'], item['last_name'], group_id or 'Domyślna', item['city'], item['email']) for item in prepared_items])
+        except Exception as dbe:
+            print("Local DB batch write error:", dbe)
 
         return jsonify({
             'success': True,

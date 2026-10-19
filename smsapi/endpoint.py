@@ -84,7 +84,7 @@ def bind_api_endpoint(**config):
                 'auth': self.api.client.auth,
                 'headers': headers,
                 'files': self.files,
-                'timeout': self.parameters.get('timeout', 30)
+                'timeout': self.parameters.get('timeout', 15)
             }
 
             if self.method == 'GET':
@@ -92,7 +92,8 @@ def bind_api_endpoint(**config):
             else:
                 kwargs.update({'data': self.compiled_parameters})
 
-            raw_response = requests.request(self.method, url, **kwargs)
+            session = getattr(self.api.client, 'session', None) or requests
+            raw_response = session.request(self.method, url, **kwargs)
 
             return self.process_response(raw_response, url=url)
 

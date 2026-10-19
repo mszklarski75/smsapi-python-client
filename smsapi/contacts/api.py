@@ -11,7 +11,7 @@ from smsapi.models import HeaderDirectResult
 list_params = ['offset', 'limit', 'orderBy']
 
 contact_params = ['first_name', 'last_name', 'phone_number', 'email',
-                  'gender', 'birthday_date', 'description']
+                  'gender', 'birthday_date', 'description', 'city', 'source', 'groups', 'group_id']
 
 
 class Contacts(Api):

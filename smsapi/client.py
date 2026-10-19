@@ -1,3 +1,6 @@
+import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 from requests.auth import HTTPBasicAuth
 
 from smsapi.account.api import Account
@@ -28,6 +31,12 @@ class Client(object):
             raise ClientException('Credentials are required.')
 
         self.auth = BearerAuth(access_token) if access_token else HTTPBasicAuth(username, password)
+
+        # High-performance persistent connection pool (Keep-Alive)
+        self.session = requests.Session()
+        adapter = HTTPAdapter(pool_connections=64, pool_maxsize=64, max_retries=Retry(total=2, backoff_factor=0.2))
+        self.session.mount("https://", adapter)
+        self.session.mount("http://", adapter)
 
         self.sms = Sms(self)
         self.mfa = Mfa(self)
