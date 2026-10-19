@@ -1216,7 +1216,7 @@ def delete_group(group_id):
 def list_group_members(group_id):
     try:
         client = get_smsapi_client()
-        contacts_res = client.contacts.list_contacts(group_id=group_id, limit=200)
+        contacts_res = client.contacts.list_contacts(group_id=group_id, limit=100)
         members_list = []
         for c in contacts_res:
             members_list.append({
@@ -1227,6 +1227,26 @@ def list_group_members(group_id):
                 'email': getattr(c, 'email', ''),
                 'city': getattr(c, 'city', '')
             })
+
+        # Fetch remaining chunks if total > 100
+        total_count = getattr(contacts_res, 'size', None)
+        if total_count and total_count > len(members_list):
+            current_offset = len(members_list)
+            while current_offset < total_count and len(members_list) < 2000:
+                chunk = list(client.contacts.list_contacts(group_id=group_id, limit=100, offset=current_offset))
+                if not chunk:
+                    break
+                for c in chunk:
+                    members_list.append({
+                        'id': getattr(c, 'id', ''),
+                        'first_name': getattr(c, 'first_name', ''),
+                        'last_name': getattr(c, 'last_name', ''),
+                        'phone_number': getattr(c, 'phone_number', ''),
+                        'email': getattr(c, 'email', ''),
+                        'city': getattr(c, 'city', '')
+                    })
+                current_offset += len(chunk)
+
         return jsonify({'success': True, 'members': members_list, 'count': len(members_list)})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e), 'members': [], 'count': 0}), 400

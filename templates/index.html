@@ -383,7 +383,12 @@
                             <div>
                                 <div class="flex items-center justify-between mb-1">
                                     <label class="block text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">Odbiorcy (numery telefonów)</label>
-                                    <span id="recipientCountBadge" class="text-xs text-blue-600 font-medium">0 numerów</span>
+                                    <div class="flex items-center gap-2">
+                                        <button type="button" onclick="openContactPickerModal()" class="text-xs text-blue-600 dark:text-blue-400 hover:underline font-semibold flex items-center gap-1 transition-colors">
+                                            <i class="fa-solid fa-address-book"></i> Wybierz z grup / kontaktów
+                                        </button>
+                                        <span id="recipientCountBadge" class="text-xs text-blue-600 font-medium">0 numerów</span>
+                                    </div>
                                 </div>
                                 <textarea id="smsRecipients" rows="2" placeholder="Wpisz numery oddzielone przecinkami, spacjami lub w nowej linii (np. 48500100200, 48600700800)" required oninput="updateRecipientCount()" class="w-full px-3.5 py-2.5 text-sm rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700/50 focus:ring-2 focus:ring-blue-500 outline-none custom-scrollbar"></textarea>
                                 <p class="text-xs text-slate-400 mt-1">Obsługiwany format: 48XXXXXXXXX, +48XXXXXXXXX, lub 9 cyfr dla numerów PL.</p>
@@ -1512,6 +1517,142 @@
                     </button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <!-- Modal: Group Members Viewer & Selective SMS Sender -->
+    <div id="viewGroupMembersModal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+        <div class="bg-white dark:bg-slate-800 rounded-2xl max-w-3xl w-full p-5 sm:p-6 shadow-2xl border border-slate-200 dark:border-slate-700 space-y-4 max-h-[92vh] flex flex-col">
+            
+            <!-- Header -->
+            <div class="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-700">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold text-lg shrink-0">
+                        <i class="fa-solid fa-people-group"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-base text-slate-800 dark:text-white flex items-center gap-2">
+                            <span>Grupa: <span id="vgmGroupNameBadge" class="text-blue-600 dark:text-blue-400">--</span></span>
+                            <span id="vgmCountBadge" class="px-2 py-0.5 rounded-full text-xs font-extrabold bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300">0 osób</span>
+                        </h3>
+                        <p class="text-xs text-slate-400">Wybierz pojedynczą osobę lub zaznacz kilka osób, aby wysłać do nich wiadomość SMS.</p>
+                    </div>
+                </div>
+                <button onclick="closeViewGroupMembersModal()" class="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <!-- Filter bar & Select All Controls -->
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs bg-slate-50 dark:bg-slate-700/40 p-3 rounded-xl border border-slate-200 dark:border-slate-700">
+                <div class="relative flex-1">
+                    <i class="fa-solid fa-magnifying-glass absolute left-3 top-2.5 text-slate-400"></i>
+                    <input type="text" id="vgmSearchInput" oninput="filterViewGroupMembers()" placeholder="Filtruj członków grupy (nazwisko, imię, numer, miasto)..." class="w-full pl-8 pr-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-white outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div class="flex items-center gap-3 flex-wrap">
+                    <label class="inline-flex items-center gap-1.5 cursor-pointer font-semibold text-slate-700 dark:text-slate-200">
+                        <input type="checkbox" id="vgmSelectAllCheckbox" onchange="toggleVgmSelectAll(this.checked)" class="rounded border-slate-300 text-blue-600 focus:ring-blue-500">
+                        <span>Zaznacz wszystkich</span>
+                    </label>
+                    <span id="vgmSelectedCounterBadge" class="font-bold px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300 border border-blue-200 dark:border-blue-800/40">
+                        Wybrano: 0
+                    </span>
+                </div>
+            </div>
+
+            <!-- Members Table / List -->
+            <div class="flex-1 overflow-y-auto custom-scrollbar rounded-xl border border-slate-200 dark:border-slate-700">
+                <table class="w-full text-left text-xs">
+                    <thead class="bg-slate-50 dark:bg-slate-700/60 uppercase font-bold text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700 sticky top-0 z-10">
+                        <tr>
+                            <th class="py-2.5 px-3 w-10 text-center">#</th>
+                            <th class="py-2.5 px-3">Imię i Nazwisko</th>
+                            <th class="py-2.5 px-3">Numer telefonu</th>
+                            <th class="py-2.5 px-3">E-mail / Miasto</th>
+                            <th class="py-2.5 px-3 text-right">Akcja SMS</th>
+                        </tr>
+                    </thead>
+                    <tbody id="vgmTableBody" class="divide-y divide-slate-100 dark:divide-slate-700/50 font-medium">
+                        <!-- Dynamic member rows -->
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Footer Actions -->
+            <div class="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-slate-100 dark:border-slate-700 text-xs">
+                <button type="button" onclick="openDualListboxFromViewer()" class="px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 font-semibold flex items-center gap-1.5 transition-colors">
+                    <i class="fa-solid fa-user-pen text-blue-500"></i> Zarządzaj członkami grupy
+                </button>
+                <div class="flex items-center gap-2 w-full sm:w-auto">
+                    <button type="button" onclick="closeViewGroupMembersModal()" class="flex-1 sm:flex-initial px-4 py-2 border rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700 font-semibold">Zamknij</button>
+                    <button type="button" id="btnVgmSendSelectedSms" onclick="sendSmsToVgmSelected()" disabled class="flex-1 sm:flex-initial px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl font-bold transition-all shadow flex items-center justify-center gap-1.5">
+                        <i class="fa-solid fa-paper-plane"></i> Wyślij SMS do zaznaczonych (<span id="vgmSendCountSpan">0</span>)
+                    </button>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Modal: Contact & Group Picker in SMS Composer -->
+    <div id="contactPickerModal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+        <div class="bg-white dark:bg-slate-800 rounded-2xl max-w-2xl w-full p-5 sm:p-6 shadow-2xl border border-slate-200 dark:border-slate-700 space-y-4 max-h-[92vh] flex flex-col">
+            
+            <!-- Header -->
+            <div class="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-700">
+                <div class="flex items-center gap-2.5">
+                    <div class="w-9 h-9 rounded-xl bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300 flex items-center justify-center font-bold text-base">
+                        <i class="fa-solid fa-address-book"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-base text-slate-800 dark:text-white">Wybierz odbiorców SMS</h3>
+                        <p class="text-xs text-slate-400">Wybierz grupę lub kontakty, aby wstawić ich numery do wiadomości.</p>
+                    </div>
+                </div>
+                <button onclick="closeContactPickerModal()" class="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <!-- Source Filter Bar (Group selection + text search) -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                <div>
+                    <label class="block font-semibold mb-1 text-slate-700 dark:text-slate-200">Filtruj wg grupy:</label>
+                    <select id="cpGroupSelect" onchange="handleContactPickerGroupChange(this.value)" class="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700 outline-none font-medium">
+                        <option value="__ALL__">👥 Wszystkie kontakty (Baza ogólna)</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block font-semibold mb-1 text-slate-700 dark:text-slate-200">Szukaj po nazwisku / numerze:</label>
+                    <div class="relative">
+                        <i class="fa-solid fa-magnifying-glass absolute left-3 top-2.5 text-slate-400"></i>
+                        <input type="text" id="cpSearchInput" oninput="filterContactPickerList()" placeholder="Wpisz nazwisko, numer, miasto..." class="w-full pl-8 pr-3 py-2 rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700 outline-none">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Select All & Count summary -->
+            <div class="flex items-center justify-between text-xs px-1">
+                <label class="inline-flex items-center gap-1.5 cursor-pointer font-semibold text-slate-700 dark:text-slate-200">
+                    <input type="checkbox" id="cpSelectAllCheckbox" onchange="toggleContactPickerSelectAll(this.checked)" class="rounded border-slate-300 text-blue-600 focus:ring-blue-500">
+                    <span>Zaznacz wszystkich widocznych</span>
+                </label>
+                <span id="cpSelectedCountBadge" class="font-bold text-blue-600 dark:text-blue-400">Wybrano: 0</span>
+            </div>
+
+            <!-- Contacts list -->
+            <div id="cpContactsListContainer" class="flex-1 overflow-y-auto max-h-72 custom-scrollbar rounded-xl border border-slate-200 dark:border-slate-700 divide-y divide-slate-100 dark:divide-slate-700/50">
+                <!-- Dynamic rows -->
+            </div>
+
+            <!-- Footer -->
+            <div class="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-slate-700 text-xs">
+                <button type="button" onclick="closeContactPickerModal()" class="px-4 py-2 border rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700 font-semibold">Anuluj</button>
+                <button type="button" id="btnCpInsertSelected" onclick="insertSelectedFromContactPicker()" disabled class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl font-bold transition-all shadow flex items-center gap-1.5">
+                    <i class="fa-solid fa-plus"></i> Wstaw wybrane numery (<span id="cpInsertCountSpan">0</span>)
+                </button>
+            </div>
+
         </div>
     </div>
 
@@ -3157,7 +3298,7 @@
                                     </div>
                                 </div>
                                 <span class="px-2.5 py-1 rounded-full bg-blue-50 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 font-extrabold text-xs whitespace-nowrap border border-blue-200 dark:border-blue-800/40">
-                                    ${g.contacts_count || 0} członków
+                                    ${g.contacts_count || 0} osób
                                 </span>
                             </div>
                             <p class="text-xs text-slate-500 dark:text-slate-400 line-clamp-2 my-2.5 min-h-[32px]">
@@ -3165,16 +3306,23 @@
                             </p>
                         </div>
 
-                        <div class="pt-3 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between gap-2">
-                            <button onclick="openGroupMembersTransferModal('${g.id}', '${g.name.replace(/'/g, "\\'")}')" class="flex-1 py-1.5 px-2 bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/60 text-blue-700 dark:text-blue-300 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-colors" title="Edytuj listę członków (Dual-listbox)">
-                                <i class="fa-solid fa-user-pen text-[11px]"></i> Członkowie
-                            </button>
-                            <button onclick="sendSmsToGroup('${g.id}', '${g.name.replace(/'/g, "\\'")}')" class="py-1.5 px-3 bg-emerald-50 dark:bg-emerald-900/30 hover:bg-emerald-100 text-emerald-700 dark:text-emerald-300 font-bold text-xs rounded-xl flex items-center justify-center gap-1 transition-colors" title="Napisz SMS do tej grupy">
-                                <i class="fa-solid fa-paper-plane text-[10px]"></i> SMS
-                            </button>
-                            <button onclick="deleteContactGroup('${g.id}', '${g.name.replace(/'/g, "\\'")}')" class="p-1.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/30 rounded-xl transition-colors" title="Usuń grupę">
-                                <i class="fa-solid fa-trash"></i>
-                            </button>
+                        <div class="pt-3 border-t border-slate-100 dark:border-slate-700/60 flex flex-col gap-2">
+                            <div class="grid grid-cols-2 gap-2">
+                                <button onclick="openViewGroupMembersModal('${g.id}', '${g.name.replace(/'/g, "\\'")}')" class="py-2 px-2 bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/60 text-blue-700 dark:text-blue-300 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-colors" title="Przeglądaj członków i wybierz do kogo wysłać SMS">
+                                    <i class="fa-solid fa-users-viewfinder text-xs"></i> Zobacz & SMS
+                                </button>
+                                <button onclick="sendSmsToGroup('${g.id}', '${g.name.replace(/'/g, "\\'")}')" class="py-2 px-2 bg-emerald-50 dark:bg-emerald-900/30 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-colors" title="Wstaw całą grupę do wysyłki SMS">
+                                    <i class="fa-solid fa-paper-plane text-xs"></i> Cała grupa
+                                </button>
+                            </div>
+                            <div class="flex items-center justify-between gap-2 pt-1 border-t border-slate-50 dark:border-slate-700/30 text-[11px]">
+                                <button onclick="openGroupMembersTransferModal('${g.id}', '${g.name.replace(/'/g, "\\'")}')" class="text-slate-500 hover:text-blue-600 dark:hover:text-blue-400 font-medium flex items-center gap-1 py-1" title="Zarządzaj przypisaniem członków do tej grupy (Dual-listbox)">
+                                    <i class="fa-solid fa-user-pen"></i> Edytuj skład grupy
+                                </button>
+                                <button onclick="deleteContactGroup('${g.id}', '${g.name.replace(/'/g, "\\'")}')" class="text-rose-400 hover:text-rose-600 font-medium flex items-center gap-1 py-1 transition-colors" title="Usuń grupę">
+                                    <i class="fa-solid fa-trash"></i> Usuń
+                                </button>
+                            </div>
                         </div>
                     </div>
                 `).join('');
@@ -3909,6 +4057,438 @@
                 });
             } catch (err) {
                 Swal.fire({ icon: 'error', title: 'Błąd', text: err.message });
+            }
+        }
+
+        // ==========================================
+        // View Group Members & Selective SMS Sender
+        // ==========================================
+        let currentVgmGroupId = null;
+        let currentVgmGroupName = '';
+        let vgmAllMembers = [];
+        let vgmFilteredMembers = [];
+        let vgmSelectedIds = new Set();
+
+        async function openViewGroupMembersModal(groupId, groupName) {
+            currentVgmGroupId = groupId;
+            currentVgmGroupName = groupName;
+            vgmSelectedIds.clear();
+
+            const modal = document.getElementById('viewGroupMembersModal');
+            const groupBadge = document.getElementById('vgmGroupNameBadge');
+            const countBadge = document.getElementById('vgmCountBadge');
+            const tbody = document.getElementById('vgmTableBody');
+            const searchInput = document.getElementById('vgmSearchInput');
+            const selectAllChk = document.getElementById('vgmSelectAllCheckbox');
+
+            if (modal) modal.classList.remove('hidden');
+            if (groupBadge) groupBadge.textContent = groupName;
+            if (countBadge) countBadge.textContent = 'Ładowanie...';
+            if (searchInput) searchInput.value = '';
+            if (selectAllChk) selectAllChk.checked = false;
+
+            if (tbody) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="5" class="py-10 text-center text-slate-400">
+                            <i class="fa-solid fa-spinner fa-spin text-xl text-blue-500 mb-2"></i>
+                            <div>Wczytywanie członków grupy "${groupName}"...</div>
+                        </td>
+                    </tr>
+                `;
+            }
+
+            try {
+                const res = await fetch(`/api/contacts/groups/${groupId}/members`);
+                const data = await res.json();
+                vgmAllMembers = data.members || [];
+                vgmFilteredMembers = [...vgmAllMembers];
+
+                if (countBadge) countBadge.textContent = `${vgmAllMembers.length} osób`;
+                renderViewGroupMembersList();
+            } catch (err) {
+                console.error("openViewGroupMembersModal error:", err);
+                if (tbody) {
+                    tbody.innerHTML = `<tr><td colspan="5" class="py-8 text-center text-rose-500">Błąd wczytywania: ${err.message}</td></tr>`;
+                }
+            }
+        }
+
+        function closeViewGroupMembersModal() {
+            document.getElementById('viewGroupMembersModal')?.classList.add('hidden');
+        }
+
+        function filterViewGroupMembers() {
+            const query = (document.getElementById('vgmSearchInput')?.value || '').toLowerCase().trim();
+            if (!query) {
+                vgmFilteredMembers = [...vgmAllMembers];
+            } else {
+                vgmFilteredMembers = vgmAllMembers.filter(m => {
+                    const fn = (m.first_name || '').toLowerCase();
+                    const ln = (m.last_name || '').toLowerCase();
+                    const phone = (m.phone_number || '').toLowerCase();
+                    const email = (m.email || '').toLowerCase();
+                    const city = (m.city || '').toLowerCase();
+                    return fn.includes(query) || ln.includes(query) || phone.includes(query) || email.includes(query) || city.includes(query);
+                });
+            }
+            renderViewGroupMembersList();
+        }
+
+        function renderViewGroupMembersList() {
+            const tbody = document.getElementById('vgmTableBody');
+            const selectedCounter = document.getElementById('vgmSelectedCounterBadge');
+            const btnSend = document.getElementById('btnVgmSendSelectedSms');
+            const sendCountSpan = document.getElementById('vgmSendCountSpan');
+            const selectAllChk = document.getElementById('vgmSelectAllCheckbox');
+
+            const count = vgmSelectedIds.size;
+            if (selectedCounter) selectedCounter.textContent = `Wybrano: ${count}`;
+            if (sendCountSpan) sendCountSpan.textContent = count;
+            if (btnSend) {
+                btnSend.disabled = (count === 0);
+            }
+
+            if (selectAllChk) {
+                selectAllChk.checked = (vgmFilteredMembers.length > 0 && vgmFilteredMembers.every(m => vgmSelectedIds.has(String(m.id))));
+            }
+
+            if (!tbody) return;
+
+            if (vgmFilteredMembers.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="5" class="py-10 text-center text-slate-400">
+                            <div class="w-10 h-10 mx-auto rounded-full bg-slate-100 dark:bg-slate-700/50 flex items-center justify-center text-slate-400 mb-2">
+                                <i class="fa-solid fa-user-slash text-base"></i>
+                            </div>
+                            <div class="font-semibold text-slate-600 dark:text-slate-300">Brak kontaktów w tej grupie lub żaden kontakt nie pasuje do filtra.</div>
+                            <div class="text-[11px] text-slate-400 mt-1">Użyj przycisku "Zarządzaj członkami grupy" poniżej, aby dodać osoby.</div>
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            tbody.innerHTML = vgmFilteredMembers.map((m, index) => {
+                const idStr = String(m.id);
+                const isChecked = vgmSelectedIds.has(idStr);
+                const initial = (m.first_name?.[0] || m.last_name?.[0] || 'K').toUpperCase();
+                const fullName = `${m.first_name || ''} ${m.last_name || ''}`.trim() || '<span class="text-slate-400 italic font-normal">Brak nazwy</span>';
+                const safeName = (m.first_name || '') + ' ' + (m.last_name || '');
+                const emailCity = [m.email, m.city].filter(Boolean).join(' • ') || '<span class="text-slate-400">-</span>';
+
+                return `
+                    <tr class="hover:bg-blue-50/50 dark:hover:bg-slate-700/40 transition-colors ${isChecked ? 'bg-blue-50/30 dark:bg-blue-900/20' : ''}">
+                        <td class="py-2.5 px-3 text-center">
+                            <input type="checkbox" ${isChecked ? 'checked' : ''} onchange="toggleVgmMemberSelection('${idStr}')" class="rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer">
+                        </td>
+                        <td class="py-2.5 px-3">
+                            <div class="flex items-center gap-2">
+                                <div class="w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 flex items-center justify-center font-bold text-[11px] shrink-0 uppercase">
+                                    ${initial}
+                                </div>
+                                <span class="font-bold text-slate-800 dark:text-slate-100">${fullName}</span>
+                            </div>
+                        </td>
+                        <td class="py-2.5 px-3">
+                            <button onclick="sendSmsToVgmSingle('${m.phone_number}', '${safeName.replace(/'/g, "\\'")}')" class="font-mono font-bold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1">
+                                <i class="fa-solid fa-paper-plane text-[9px]"></i> ${m.phone_number || '-'}
+                            </button>
+                        </td>
+                        <td class="py-2.5 px-3 text-slate-600 dark:text-slate-400 text-[11px]">
+                            ${emailCity}
+                        </td>
+                        <td class="py-2.5 px-3 text-right">
+                            <button onclick="sendSmsToVgmSingle('${m.phone_number}', '${safeName.replace(/'/g, "\\'")}')" class="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-900/30 dark:hover:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 font-bold text-[11px] rounded-lg transition-colors inline-flex items-center gap-1 shadow-sm" title="Wyślij SMS do tej osoby">
+                                <i class="fa-solid fa-comment-sms"></i> Wyślij SMS
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function toggleVgmMemberSelection(idStr) {
+            if (vgmSelectedIds.has(idStr)) {
+                vgmSelectedIds.delete(idStr);
+            } else {
+                vgmSelectedIds.add(idStr);
+            }
+            renderViewGroupMembersList();
+        }
+
+        function toggleVgmSelectAll(checked) {
+            if (checked) {
+                vgmFilteredMembers.forEach(m => vgmSelectedIds.add(String(m.id)));
+            } else {
+                vgmFilteredMembers.forEach(m => vgmSelectedIds.delete(String(m.id)));
+            }
+            renderViewGroupMembersList();
+        }
+
+        function sendSmsToVgmSingle(phoneNumber, contactName) {
+            if (!phoneNumber) {
+                Swal.fire({ icon: 'warning', title: 'Brak numeru', text: 'Ten kontakt nie posiada zapisanego numeru telefonu.' });
+                return;
+            }
+            closeViewGroupMembersModal();
+            const recipientsInput = document.getElementById('smsRecipients');
+            if (recipientsInput) {
+                recipientsInput.value = String(phoneNumber).trim();
+                updateRecipientCount();
+            }
+            switchTab('sms-send');
+            const msgInput = document.getElementById('smsMessageText');
+            if (msgInput) {
+                setTimeout(() => { msgInput.focus(); }, 100);
+            }
+            Swal.fire({
+                icon: 'success',
+                title: 'Wybrano kontakt',
+                text: `Ustawiono odbiorcę: ${contactName || phoneNumber} (${phoneNumber})`,
+                timer: 1400,
+                showConfirmButton: false
+            });
+        }
+
+        function sendSmsToVgmSelected() {
+            if (vgmSelectedIds.size === 0) {
+                Swal.fire({ icon: 'info', title: 'Brak zaznaczenia', text: 'Zaznacz co najmniej jedną osobę, aby wysłać SMS.' });
+                return;
+            }
+
+            const selectedMembers = vgmAllMembers.filter(m => vgmSelectedIds.has(String(m.id)));
+            const phoneNumbers = selectedMembers.map(m => m.phone_number).filter(Boolean);
+
+            if (phoneNumbers.length === 0) {
+                Swal.fire({ icon: 'warning', title: 'Brak numerów', text: 'Żaden z zaznaczonych kontaktów nie posiada numeru telefonu.' });
+                return;
+            }
+
+            closeViewGroupMembersModal();
+            const recipientsInput = document.getElementById('smsRecipients');
+            if (recipientsInput) {
+                recipientsInput.value = phoneNumbers.join(', ');
+                updateRecipientCount();
+            }
+            switchTab('sms-send');
+            const msgInput = document.getElementById('smsMessageText');
+            if (msgInput) {
+                setTimeout(() => { msgInput.focus(); }, 100);
+            }
+            Swal.fire({
+                icon: 'success',
+                title: 'Wstawiono odbiorców',
+                text: `Wpisano ${phoneNumbers.length} wybranych numerów z grupy "${currentVgmGroupName}".`,
+                timer: 1600,
+                showConfirmButton: false
+            });
+        }
+
+        function openDualListboxFromViewer() {
+            closeViewGroupMembersModal();
+            if (currentVgmGroupId) {
+                openGroupMembersTransferModal(currentVgmGroupId, currentVgmGroupName);
+            }
+        }
+
+        // ==========================================
+        // Contact & Group Picker in SMS Composer
+        // ==========================================
+        let cpAllContacts = [];
+        let cpFilteredContacts = [];
+        let cpSelectedPhoneNumbers = new Set();
+
+        async function openContactPickerModal() {
+            const modal = document.getElementById('contactPickerModal');
+            const groupSelect = document.getElementById('cpGroupSelect');
+            const searchInput = document.getElementById('cpSearchInput');
+            const selectAllChk = document.getElementById('cpSelectAllCheckbox');
+            const container = document.getElementById('cpContactsListContainer');
+
+            if (modal) modal.classList.remove('hidden');
+            if (searchInput) searchInput.value = '';
+            if (selectAllChk) selectAllChk.checked = false;
+            cpSelectedPhoneNumbers.clear();
+
+            // Populate group options
+            if (groupSelect) {
+                let opts = `<option value="__ALL__">👥 Wszystkie kontakty (Baza ogólna)</option>`;
+                if (cachedContactGroups && cachedContactGroups.length > 0) {
+                    cachedContactGroups.forEach(g => {
+                        opts += `<option value="${g.id}">👥 ${g.name} (${g.contacts_count || 0} osób)</option>`;
+                    });
+                }
+                groupSelect.innerHTML = opts;
+                groupSelect.value = '__ALL__';
+            }
+
+            await loadContactPickerData('__ALL__');
+        }
+
+        function closeContactPickerModal() {
+            document.getElementById('contactPickerModal')?.classList.add('hidden');
+        }
+
+        async function handleContactPickerGroupChange(groupId) {
+            await loadContactPickerData(groupId);
+        }
+
+        async function loadContactPickerData(groupId) {
+            const container = document.getElementById('cpContactsListContainer');
+            if (container) {
+                container.innerHTML = `<div class="py-12 text-center text-slate-400"><i class="fa-solid fa-spinner fa-spin mr-1.5 text-blue-500"></i>Wczytywanie kontaktów...</div>`;
+            }
+
+            try {
+                if (groupId === '__ALL__') {
+                    const res = await fetch('/api/contacts?limit=500');
+                    const data = await res.json();
+                    cpAllContacts = (data.contacts || []).filter(c => !!c.phone_number);
+                } else {
+                    const res = await fetch(`/api/contacts/groups/${groupId}/members`);
+                    const data = await res.json();
+                    cpAllContacts = (data.members || []).filter(c => !!c.phone_number);
+                }
+                cpFilteredContacts = [...cpAllContacts];
+                renderContactPickerList();
+            } catch (err) {
+                console.error("loadContactPickerData error:", err);
+                if (container) {
+                    container.innerHTML = `<div class="py-6 text-center text-rose-500">Błąd: ${err.message}</div>`;
+                }
+            }
+        }
+
+        function filterContactPickerList() {
+            const query = (document.getElementById('cpSearchInput')?.value || '').toLowerCase().trim();
+            if (!query) {
+                cpFilteredContacts = [...cpAllContacts];
+            } else {
+                cpFilteredContacts = cpAllContacts.filter(c => {
+                    const fn = (c.first_name || '').toLowerCase();
+                    const ln = (c.last_name || '').toLowerCase();
+                    const phone = (c.phone_number || '').toLowerCase();
+                    const city = (c.city || '').toLowerCase();
+                    return fn.includes(query) || ln.includes(query) || phone.includes(query) || city.includes(query);
+                });
+            }
+            renderContactPickerList();
+        }
+
+        function renderContactPickerList() {
+            const container = document.getElementById('cpContactsListContainer');
+            const badge = document.getElementById('cpSelectedCountBadge');
+            const spanCount = document.getElementById('cpInsertCountSpan');
+            const btnInsert = document.getElementById('btnCpInsertSelected');
+            const selectAllChk = document.getElementById('cpSelectAllCheckbox');
+
+            const count = cpSelectedPhoneNumbers.size;
+            if (badge) badge.textContent = `Wybrano: ${count}`;
+            if (spanCount) spanCount.textContent = count;
+            if (btnInsert) btnInsert.disabled = (count === 0);
+
+            if (selectAllChk) {
+                selectAllChk.checked = (cpFilteredContacts.length > 0 && cpFilteredContacts.every(c => cpSelectedPhoneNumbers.has(String(c.phone_number))));
+            }
+
+            if (!container) return;
+
+            if (cpFilteredContacts.length === 0) {
+                container.innerHTML = `<div class="py-8 text-center text-slate-400 text-xs">Brak kontaktów do wyświetlenia.</div>`;
+                return;
+            }
+
+            container.innerHTML = cpFilteredContacts.map(c => {
+                const phone = String(c.phone_number);
+                const isChecked = cpSelectedPhoneNumbers.has(phone);
+                const fullName = `${c.first_name || ''} ${c.last_name || ''}`.trim() || 'Bez nazwy';
+                const initial = (c.first_name?.[0] || c.last_name?.[0] || 'K').toUpperCase();
+
+                return `
+                    <div class="p-2.5 flex items-center justify-between gap-3 hover:bg-slate-50 dark:hover:bg-slate-700/40 transition-colors ${isChecked ? 'bg-blue-50/40 dark:bg-blue-900/20' : ''}">
+                        <label class="flex items-center gap-2.5 cursor-pointer flex-1 min-w-0">
+                            <input type="checkbox" ${isChecked ? 'checked' : ''} onchange="toggleContactPickerItem('${phone}')" class="rounded border-slate-300 text-blue-600 focus:ring-blue-500">
+                            <div class="w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 flex items-center justify-center font-bold text-[10px] uppercase shrink-0">
+                                ${initial}
+                            </div>
+                            <div class="truncate text-xs">
+                                <span class="font-bold text-slate-800 dark:text-slate-100">${fullName}</span>
+                                <span class="font-mono text-slate-500 dark:text-slate-400 ml-1.5 text-[11px]">${phone}</span>
+                            </div>
+                        </label>
+                        <button type="button" onclick="insertSingleFromContactPicker('${phone}', '${fullName.replace(/'/g, "\\'")}')" class="px-2 py-1 text-[11px] font-bold bg-slate-100 hover:bg-blue-100 dark:bg-slate-700 dark:hover:bg-blue-900/50 text-slate-700 hover:text-blue-700 dark:text-slate-200 dark:hover:text-blue-300 rounded-lg transition-colors whitespace-nowrap">
+                            + Wstaw
+                        </button>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function toggleContactPickerItem(phone) {
+            if (cpSelectedPhoneNumbers.has(phone)) {
+                cpSelectedPhoneNumbers.delete(phone);
+            } else {
+                cpSelectedPhoneNumbers.add(phone);
+            }
+            renderContactPickerList();
+        }
+
+        function toggleContactPickerSelectAll(checked) {
+            if (checked) {
+                cpFilteredContacts.forEach(c => cpSelectedPhoneNumbers.add(String(c.phone_number)));
+            } else {
+                cpFilteredContacts.forEach(c => cpSelectedPhoneNumbers.delete(String(c.phone_number)));
+            }
+            renderContactPickerList();
+        }
+
+        function insertSingleFromContactPicker(phone, name) {
+            const input = document.getElementById('smsRecipients');
+            if (input) {
+                let existing = input.value.trim();
+                let numbers = existing ? existing.split(/[\s,;]+/).filter(Boolean) : [];
+                if (!numbers.includes(phone)) {
+                    numbers.push(phone);
+                }
+                input.value = numbers.join(', ');
+                updateRecipientCount();
+            }
+            closeContactPickerModal();
+            Swal.fire({
+                icon: 'success',
+                title: 'Dodano numer',
+                text: `Dodano ${name || phone} (${phone}) do odbiorców.`,
+                timer: 1200,
+                showConfirmButton: false
+            });
+        }
+
+        function insertSelectedFromContactPicker() {
+            if (cpSelectedPhoneNumbers.size === 0) return;
+            const input = document.getElementById('smsRecipients');
+            if (input) {
+                let existing = input.value.trim();
+                let numbers = existing ? existing.split(/[\s,;]+/).filter(Boolean) : [];
+                let addedCount = 0;
+                cpSelectedPhoneNumbers.forEach(p => {
+                    if (!numbers.includes(p)) {
+                        numbers.push(p);
+                        addedCount++;
+                    }
+                });
+                input.value = numbers.join(', ');
+                updateRecipientCount();
+
+                closeContactPickerModal();
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Wstawiono numery',
+                    text: `Dodano ${addedCount} nowych numerów do odbiorców SMS.`,
+                    timer: 1400,
+                    showConfirmButton: false
+                });
             }
         }
 
