@@ -1729,10 +1729,15 @@
                     </div>
                     <div class="flex items-center justify-between pb-1.5 text-[11px] text-slate-500 border-b border-slate-200 dark:border-slate-600 mb-1">
                         <label class="flex items-center gap-1.5 cursor-pointer font-medium">
-                            <input type="checkbox" id="selectAllRight" onchange="toggleSelectAllRight(this.checked)" class="rounded text-rose-600">
+                            <input type="checkbox" id="selectAllRight" onchange="toggleSelectAllRight(this.checked)" class="rounded text-blue-600">
                             <span>Zaznacz wszystkie</span>
                         </label>
-                        <span id="rightSelectedCount" class="font-bold text-rose-600">Wybrano: 0</span>
+                        <div class="flex items-center gap-2">
+                            <span id="rightSelectedCount" class="font-bold text-blue-600">Wybrano: 0</span>
+                            <button type="button" id="btnRightSendSmsSelected" onclick="sendSmsFromTransferSelected()" disabled class="px-2 py-0.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-[10px] transition-all flex items-center gap-1 shadow-sm">
+                                <i class="fa-solid fa-paper-plane text-[9px]"></i> SMS
+                            </button>
+                        </div>
                     </div>
                     <div id="rightContactsList" class="flex-1 overflow-y-auto max-h-64 sm:max-h-80 space-y-1 custom-scrollbar pr-1">
                         <!-- Right Checkbox Items -->
@@ -1741,13 +1746,21 @@
             </div>
 
             <!-- Modal Footer -->
-            <div class="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-slate-700">
+            <div class="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-slate-100 dark:border-slate-700">
                 <div id="transferStatusInfo" class="text-xs text-slate-500">
                     Wprowadzone zmiany są natychmiast zapisywane w SMSAPI.
                 </div>
-                <button onclick="closeGroupMembersModal()" class="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs transition-colors">
-                    Zakończ edycję
-                </button>
+                <div class="flex items-center gap-2 flex-wrap justify-end w-full sm:w-auto">
+                    <button type="button" id="btnTransferFooterSendSelected" onclick="sendSmsFromTransferSelected()" disabled class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold rounded-xl text-xs transition-colors flex items-center gap-1.5 shadow">
+                        <i class="fa-solid fa-paper-plane"></i> Wyślij SMS do zaznaczonych (<span id="transferSelectedCountSpan">0</span>)
+                    </button>
+                    <button type="button" id="btnTransferFooterSendAll" onclick="sendSmsToGroup(currentTransferGroupId, currentTransferGroupName)" class="px-3.5 py-2 bg-emerald-50 dark:bg-emerald-900/40 hover:bg-emerald-100 text-emerald-700 dark:text-emerald-300 font-bold rounded-xl text-xs transition-colors border border-emerald-300 dark:border-emerald-800 flex items-center gap-1.5">
+                        <i class="fa-solid fa-users"></i> SMS do całej grupy
+                    </button>
+                    <button type="button" onclick="closeGroupMembersModal()" class="px-4 py-2 border border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700 font-semibold rounded-xl text-xs transition-colors">
+                        Zakończ edycję
+                    </button>
+                </div>
             </div>
         </div>
     </div>
@@ -3285,16 +3298,16 @@
                 }
 
                 container.innerHTML = cachedContactGroups.map(g => `
-                    <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-5 shadow-sm flex flex-col justify-between hover:border-blue-300 dark:hover:border-blue-700 transition-all">
-                        <div>
+                    <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-5 shadow-sm flex flex-col justify-between hover:border-blue-400 dark:hover:border-blue-600 transition-all">
+                        <div onclick="openViewGroupMembersModal('${g.id}', '${g.name.replace(/'/g, "\\'")}')" class="cursor-pointer group" title="Kliknij, aby otworzyć listę członków i wysłać SMS">
                             <div class="flex items-start justify-between gap-3 mb-2">
                                 <div class="flex items-center gap-2.5">
-                                    <div class="w-10 h-10 rounded-xl bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300 flex items-center justify-center text-lg font-bold shrink-0">
+                                    <div class="w-10 h-10 rounded-xl bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300 flex items-center justify-center text-lg font-bold shrink-0 group-hover:scale-105 transition-transform">
                                         <i class="fa-solid fa-people-group"></i>
                                     </div>
                                     <div>
-                                        <h3 class="font-bold text-slate-800 dark:text-white text-sm leading-tight">${g.name}</h3>
-                                        <span class="text-[11px] text-slate-400">ID: ${g.id}</span>
+                                        <h3 class="font-bold text-slate-800 dark:text-white text-sm leading-tight group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">${g.name}</h3>
+                                        <span class="text-[11px] text-slate-400 font-mono">ID: ${g.id}</span>
                                     </div>
                                 </div>
                                 <span class="px-2.5 py-1 rounded-full bg-blue-50 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 font-extrabold text-xs whitespace-nowrap border border-blue-200 dark:border-blue-800/40">
@@ -3308,18 +3321,18 @@
 
                         <div class="pt-3 border-t border-slate-100 dark:border-slate-700/60 flex flex-col gap-2">
                             <div class="grid grid-cols-2 gap-2">
-                                <button onclick="openViewGroupMembersModal('${g.id}', '${g.name.replace(/'/g, "\\'")}')" class="py-2 px-2 bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/60 text-blue-700 dark:text-blue-300 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-colors" title="Przeglądaj członków i wybierz do kogo wysłać SMS">
+                                <button type="button" onclick="openViewGroupMembersModal('${g.id}', '${g.name.replace(/'/g, "\\'")}')" class="py-2 px-2 bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/60 text-blue-700 dark:text-blue-300 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-colors shadow-sm" title="Przeglądaj członków i wybierz do kogo wysłać SMS">
                                     <i class="fa-solid fa-users-viewfinder text-xs"></i> Zobacz & SMS
                                 </button>
-                                <button onclick="sendSmsToGroup('${g.id}', '${g.name.replace(/'/g, "\\'")}')" class="py-2 px-2 bg-emerald-50 dark:bg-emerald-900/30 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-colors" title="Wstaw całą grupę do wysyłki SMS">
+                                <button type="button" onclick="sendSmsToGroup('${g.id}', '${g.name.replace(/'/g, "\\'")}')" class="py-2 px-2 bg-emerald-50 dark:bg-emerald-900/30 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-colors shadow-sm" title="Wstaw całą grupę do wysyłki SMS">
                                     <i class="fa-solid fa-paper-plane text-xs"></i> Cała grupa
                                 </button>
                             </div>
                             <div class="flex items-center justify-between gap-2 pt-1 border-t border-slate-50 dark:border-slate-700/30 text-[11px]">
-                                <button onclick="openGroupMembersTransferModal('${g.id}', '${g.name.replace(/'/g, "\\'")}')" class="text-slate-500 hover:text-blue-600 dark:hover:text-blue-400 font-medium flex items-center gap-1 py-1" title="Zarządzaj przypisaniem członków do tej grupy (Dual-listbox)">
+                                <button type="button" onclick="openGroupMembersTransferModal('${g.id}', '${g.name.replace(/'/g, "\\'")}')" class="text-slate-500 hover:text-blue-600 dark:hover:text-blue-400 font-medium flex items-center gap-1 py-1 transition-colors" title="Zarządzaj przypisaniem członków do tej grupy (Dual-listbox)">
                                     <i class="fa-solid fa-user-pen"></i> Edytuj skład grupy
                                 </button>
-                                <button onclick="deleteContactGroup('${g.id}', '${g.name.replace(/'/g, "\\'")}')" class="text-rose-400 hover:text-rose-600 font-medium flex items-center gap-1 py-1 transition-colors" title="Usuń grupę">
+                                <button type="button" onclick="deleteContactGroup('${g.id}', '${g.name.replace(/'/g, "\\'")}')" class="text-rose-400 hover:text-rose-600 font-medium flex items-center gap-1 py-1 transition-colors" title="Usuń grupę">
                                     <i class="fa-solid fa-trash"></i> Usuń
                                 </button>
                             </div>
@@ -3784,9 +3797,21 @@
             const container = document.getElementById('rightContactsList');
             const badge = document.getElementById('rightCountBadge');
             const selectedBadge = document.getElementById('rightSelectedCount');
+            const btnRightSendSms = document.getElementById('btnRightSendSmsSelected');
+            const btnFooterSendSelected = document.getElementById('btnTransferFooterSendSelected');
+            const transferSelectedCountSpan = document.getElementById('transferSelectedCountSpan');
+            const btnFooterSendAll = document.getElementById('btnTransferFooterSendAll');
 
+            const count = transferSelectedRightIds.size;
             if (badge) badge.textContent = `${list.length} z ${transferGroupMembers.length}`;
-            if (selectedBadge) selectedBadge.textContent = `Wybrano: ${transferSelectedRightIds.size}`;
+            if (selectedBadge) selectedBadge.textContent = `Wybrano: ${count}`;
+            if (transferSelectedCountSpan) transferSelectedCountSpan.textContent = count;
+            if (btnRightSendSms) btnRightSendSms.disabled = (count === 0);
+            if (btnFooterSendSelected) btnFooterSendSelected.disabled = (count === 0);
+            if (btnFooterSendAll) {
+                btnFooterSendAll.innerHTML = `<i class="fa-solid fa-users"></i> SMS do całej grupy (${transferGroupMembers.length})`;
+                btnFooterSendAll.disabled = (transferGroupMembers.length === 0);
+            }
 
             if (!container) return;
 
@@ -3799,16 +3824,29 @@
                 const id = String(c.id);
                 const isChecked = transferSelectedRightIds.has(id);
                 const name = `${c.first_name || ''} ${c.last_name || ''}`.trim() || 'Bez nazwy';
+                const initial = (c.first_name?.[0] || c.last_name?.[0] || 'K').toUpperCase();
+
                 return `
-                    <label class="flex items-center justify-between p-2 rounded-lg border border-blue-200 dark:border-blue-900/60 bg-white dark:bg-slate-800 hover:bg-rose-50/50 dark:hover:bg-rose-900/20 cursor-pointer transition-colors text-xs ${isChecked ? 'ring-2 ring-rose-500 bg-rose-50/60' : ''}">
-                        <div class="flex items-center gap-2 overflow-hidden">
-                            <input type="checkbox" onchange="toggleRightContact('${id}', this.checked)" ${isChecked ? 'checked' : ''} class="rounded text-rose-600 focus:ring-0">
+                    <div class="flex items-center justify-between p-2 rounded-xl border border-blue-200 dark:border-blue-900/60 bg-white dark:bg-slate-800 hover:border-blue-400 transition-all text-xs ${isChecked ? 'ring-2 ring-blue-500 bg-blue-50/40 dark:bg-blue-900/20' : ''}">
+                        <label class="flex items-center gap-2 overflow-hidden flex-1 cursor-pointer min-w-0">
+                            <input type="checkbox" onchange="toggleRightContact('${id}', this.checked)" ${isChecked ? 'checked' : ''} class="rounded text-blue-600 focus:ring-blue-500 cursor-pointer">
+                            <div class="w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 flex items-center justify-center font-bold text-[10px] uppercase shrink-0">
+                                ${initial}
+                            </div>
                             <div class="truncate">
                                 <div class="font-bold text-slate-800 dark:text-slate-100 truncate">${name}</div>
-                                <div class="text-[11px] font-mono text-blue-600 dark:text-blue-400 font-semibold">${c.phone_number}</div>
+                                <div class="text-[11px] font-mono text-blue-600 dark:text-blue-400 font-semibold flex items-center gap-1">
+                                    <span>${c.phone_number || '-'}</span>
+                                    ${c.city ? `<span class="text-slate-400 font-sans font-normal text-[10px]">(${c.city})</span>` : ''}
+                                </div>
                             </div>
+                        </label>
+                        <div class="flex items-center gap-1 shrink-0 ml-2">
+                            <button type="button" onclick="sendSmsFromTransferSingle('${c.phone_number}', '${name.replace(/'/g, "\\'")}')" class="px-2 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-900/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/80 text-emerald-700 dark:text-emerald-300 font-bold text-[11px] transition-colors flex items-center gap-1 shadow-sm" title="Wyślij SMS do tej osoby">
+                                <i class="fa-solid fa-comment-sms"></i> SMS
+                            </button>
                         </div>
-                    </label>
+                    </div>
                 `;
             }).join('');
         }
@@ -3822,7 +3860,76 @@
         function toggleRightContact(id, checked) {
             if (checked) transferSelectedRightIds.add(id);
             else transferSelectedRightIds.delete(id);
-            document.getElementById('rightSelectedCount').textContent = `Wybrano: ${transferSelectedRightIds.size}`;
+            
+            const count = transferSelectedRightIds.size;
+            const badge = document.getElementById('rightSelectedCount');
+            const btnRightSendSms = document.getElementById('btnRightSendSmsSelected');
+            const btnFooterSendSelected = document.getElementById('btnTransferFooterSendSelected');
+            const span = document.getElementById('transferSelectedCountSpan');
+            
+            if (badge) badge.textContent = `Wybrano: ${count}`;
+            if (btnRightSendSms) btnRightSendSms.disabled = (count === 0);
+            if (btnFooterSendSelected) btnFooterSendSelected.disabled = (count === 0);
+            if (span) span.textContent = count;
+        }
+
+        function sendSmsFromTransferSingle(phoneNumber, contactName) {
+            if (!phoneNumber) {
+                Swal.fire({ icon: 'warning', title: 'Brak numeru', text: 'Ten kontakt nie posiada zapisanego numeru telefonu.' });
+                return;
+            }
+            closeGroupMembersModal();
+            const recipientsInput = document.getElementById('smsRecipients');
+            if (recipientsInput) {
+                recipientsInput.value = String(phoneNumber).trim();
+                updateRecipientCount();
+            }
+            switchTab('sms-send');
+            const msgInput = document.getElementById('smsMessageText');
+            if (msgInput) {
+                setTimeout(() => { msgInput.focus(); }, 100);
+            }
+            Swal.fire({
+                icon: 'success',
+                title: 'Wybrano kontakt',
+                text: `Ustawiono odbiorcę: ${contactName || phoneNumber} (${phoneNumber})`,
+                timer: 1400,
+                showConfirmButton: false
+            });
+        }
+
+        function sendSmsFromTransferSelected() {
+            if (transferSelectedRightIds.size === 0) {
+                Swal.fire({ icon: 'info', title: 'Brak zaznaczenia', text: 'Zaznacz co najmniej jedną osobę w prawej kolumnie, aby wysłać SMS.' });
+                return;
+            }
+
+            const selectedMembers = transferGroupMembers.filter(m => transferSelectedRightIds.has(String(m.id)));
+            const phoneNumbers = selectedMembers.map(m => m.phone_number).filter(Boolean);
+
+            if (phoneNumbers.length === 0) {
+                Swal.fire({ icon: 'warning', title: 'Brak numerów', text: 'Żaden z zaznaczonych kontaktów nie posiada numeru telefonu.' });
+                return;
+            }
+
+            closeGroupMembersModal();
+            const recipientsInput = document.getElementById('smsRecipients');
+            if (recipientsInput) {
+                recipientsInput.value = phoneNumbers.join(', ');
+                updateRecipientCount();
+            }
+            switchTab('sms-send');
+            const msgInput = document.getElementById('smsMessageText');
+            if (msgInput) {
+                setTimeout(() => { msgInput.focus(); }, 100);
+            }
+            Swal.fire({
+                icon: 'success',
+                title: 'Wstawiono odbiorców',
+                text: `Wpisano ${phoneNumbers.length} wybranych numerów z grupy "${currentTransferGroupName}".`,
+                timer: 1600,
+                showConfirmButton: false
+            });
         }
 
         function toggleSelectAllLeft(checked) {
@@ -4016,6 +4123,9 @@
         // Send SMS to Entire Group
         async function sendSmsToGroup(groupId, groupName) {
             try {
+                closeGroupMembersModal();
+                closeViewGroupMembersModal();
+
                 Swal.fire({
                     title: 'Pobieranie kontaktów...',
                     html: `Wczytywanie numerów telefonów z grupy <b>${groupName}</b>...`,
