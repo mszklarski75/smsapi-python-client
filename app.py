@@ -1205,6 +1205,7 @@ def create_group():
 @app.route('/api/contacts/groups/<group_id>', methods=['DELETE'])
 def delete_group(group_id):
     try:
+        invalidate_group_cache(group_id)
         client = get_smsapi_client()
         client.contacts.delete_group(group_id=group_id)
         return jsonify({'success': True, 'message': 'Grupa została usunięta z SMSAPI.'})
@@ -1212,14 +1213,41 @@ def delete_group(group_id):
         return jsonify({'success': False, 'error': str(e)}), 400
 
 
+_group_members_cache = {}  # group_id -> {'time': float, 'members': list, 'total': int}
+_group_members_cache_ttl = 90  # 90 seconds cache
+
+def invalidate_group_cache(group_id=None):
+    global _group_members_cache
+    if group_id:
+        _group_members_cache.pop(str(group_id), None)
+    else:
+        _group_members_cache.clear()
+
+
 @app.route('/api/contacts/groups/<group_id>/members', methods=['GET'])
 def list_group_members(group_id):
     try:
+        force_refresh = request.args.get('refresh') == '1'
+        now = time.time()
+
+        # Check in-memory cache first for instant 0.001s response
+        if not force_refresh and str(group_id) in _group_members_cache:
+            entry = _group_members_cache[str(group_id)]
+            if now - entry['time'] < _group_members_cache_ttl:
+                return jsonify({
+                    'success': True,
+                    'members': entry['members'],
+                    'count': len(entry['members']),
+                    'total': entry.get('total', len(entry['members'])),
+                    'cached': True
+                })
+
         client = get_smsapi_client()
-        contacts_res = client.contacts.list_contacts(group_id=group_id, limit=100)
-        members_list = []
+        # 1. Fetch first chunk with limit=500
+        contacts_res = client.contacts.list_contacts(group_id=group_id, limit=500, offset=0)
+        first_chunk = []
         for c in contacts_res:
-            members_list.append({
+            first_chunk.append({
                 'id': getattr(c, 'id', ''),
                 'first_name': getattr(c, 'first_name', ''),
                 'last_name': getattr(c, 'last_name', ''),
@@ -1228,32 +1256,58 @@ def list_group_members(group_id):
                 'city': getattr(c, 'city', '')
             })
 
-        # Fetch remaining chunks if total > 100
-        total_count = getattr(contacts_res, 'size', None)
-        if total_count and total_count > len(members_list):
-            current_offset = len(members_list)
-            while current_offset < total_count and len(members_list) < 2000:
-                chunk = list(client.contacts.list_contacts(group_id=group_id, limit=100, offset=current_offset))
-                if not chunk:
-                    break
-                for c in chunk:
-                    members_list.append({
-                        'id': getattr(c, 'id', ''),
-                        'first_name': getattr(c, 'first_name', ''),
-                        'last_name': getattr(c, 'last_name', ''),
-                        'phone_number': getattr(c, 'phone_number', ''),
-                        'email': getattr(c, 'email', ''),
-                        'city': getattr(c, 'city', '')
-                    })
-                current_offset += len(chunk)
+        total_count = getattr(contacts_res, 'size', None) or len(first_chunk)
+        members_list = list(first_chunk)
 
-        return jsonify({'success': True, 'members': members_list, 'count': len(members_list)})
+        # 2. If more contacts exist, fetch remaining chunks in parallel with ThreadPoolExecutor
+        if total_count > len(first_chunk):
+            offsets = list(range(500, min(total_count, 15000), 500))
+
+            def fetch_chunk(off):
+                try:
+                    res = client.contacts.list_contacts(group_id=group_id, limit=500, offset=off)
+                    chunk_items = []
+                    for c in res:
+                        chunk_items.append({
+                            'id': getattr(c, 'id', ''),
+                            'first_name': getattr(c, 'first_name', ''),
+                            'last_name': getattr(c, 'last_name', ''),
+                            'phone_number': getattr(c, 'phone_number', ''),
+                            'email': getattr(c, 'email', ''),
+                            'city': getattr(c, 'city', '')
+                        })
+                    return off, chunk_items
+                except Exception as err:
+                    print(f"Error fetching chunk offset {off}: {err}")
+                    return off, []
+
+            with ThreadPoolExecutor(max_workers=8) as executor:
+                results = list(executor.map(fetch_chunk, offsets))
+
+            results.sort(key=lambda x: x[0])
+            for _, items in results:
+                members_list.extend(items)
+
+        # Save to memory cache
+        _group_members_cache[str(group_id)] = {
+            'time': now,
+            'members': members_list,
+            'total': total_count
+        }
+
+        return jsonify({
+            'success': True,
+            'members': members_list,
+            'count': len(members_list),
+            'total': total_count
+        })
     except Exception as e:
         return jsonify({'success': False, 'error': str(e), 'members': [], 'count': 0}), 400
 
 
 @app.route('/api/contacts/groups/<group_id>/members', methods=['POST'])
 def add_group_members(group_id):
+    invalidate_group_cache(group_id)
     data = request.json or {}
     contact_ids = data.get('contact_ids', [])
     if isinstance(contact_ids, str):
@@ -1285,6 +1339,7 @@ def add_group_members(group_id):
 @app.route('/api/contacts/groups/<group_id>/members/<contact_id>', methods=['DELETE'])
 def remove_group_member(group_id, contact_id):
     try:
+        invalidate_group_cache(group_id)
         client = get_smsapi_client()
         client.contacts.unpin_contact_from_group(group_id=group_id, contact_id=contact_id)
         return jsonify({'success': True, 'message': 'Kontakt został usunięty z grupy.'})
@@ -1294,6 +1349,7 @@ def remove_group_member(group_id, contact_id):
 
 @app.route('/api/contacts/groups/<group_id>/members/bulk-remove', methods=['POST'])
 def bulk_remove_group_members(group_id):
+    invalidate_group_cache(group_id)
     data = request.json or {}
     contact_ids = data.get('contact_ids', [])
     if isinstance(contact_ids, str):

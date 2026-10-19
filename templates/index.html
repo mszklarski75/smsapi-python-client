@@ -1522,37 +1522,42 @@
 
     <!-- Modal: Group Members Viewer & Selective SMS Sender -->
     <div id="viewGroupMembersModal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
-        <div class="bg-white dark:bg-slate-800 rounded-2xl max-w-3xl w-full p-5 sm:p-6 shadow-2xl border border-slate-200 dark:border-slate-700 space-y-4 max-h-[92vh] flex flex-col">
+        <div class="bg-white dark:bg-slate-800 rounded-2xl max-w-4xl w-full p-4 sm:p-6 shadow-2xl border border-slate-200 dark:border-slate-700 space-y-3.5 max-h-[94vh] flex flex-col">
             
             <!-- Header -->
             <div class="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-700">
                 <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 rounded-xl bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold text-lg shrink-0">
+                    <div class="w-10 h-10 rounded-xl bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold text-lg shrink-0 shadow-sm">
                         <i class="fa-solid fa-people-group"></i>
                     </div>
                     <div>
-                        <h3 class="font-bold text-base text-slate-800 dark:text-white flex items-center gap-2">
-                            <span>Grupa: <span id="vgmGroupNameBadge" class="text-blue-600 dark:text-blue-400">--</span></span>
-                            <span id="vgmCountBadge" class="px-2 py-0.5 rounded-full text-xs font-extrabold bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300">0 osób</span>
+                        <h3 class="font-bold text-base text-slate-800 dark:text-white flex items-center gap-2 flex-wrap">
+                            <span>Grupa: <span id="vgmGroupNameBadge" class="text-blue-600 dark:text-blue-400 font-extrabold">--</span></span>
+                            <span id="vgmCountBadge" class="px-2.5 py-0.5 rounded-full text-xs font-extrabold bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300">0 osób</span>
                         </h3>
-                        <p class="text-xs text-slate-400">Wybierz pojedynczą osobę lub zaznacz kilka osób, aby wysłać do nich wiadomość SMS.</p>
+                        <p class="text-xs text-slate-400">Przeglądaj członków grupy, wysyłaj wiadomości do pojedynczych osób lub wybranych podzbiorów.</p>
                     </div>
                 </div>
-                <button onclick="closeViewGroupMembersModal()" class="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
-                    <i class="fa-solid fa-xmark text-lg"></i>
-                </button>
+                <div class="flex items-center gap-1.5">
+                    <button type="button" onclick="refreshCurrentViewGroupMembers()" class="p-2 rounded-lg text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors" title="Odśwież listę z SMSAPI">
+                        <i class="fa-solid fa-arrows-rotate"></i>
+                    </button>
+                    <button type="button" onclick="closeViewGroupMembersModal()" class="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+                        <i class="fa-solid fa-xmark text-lg"></i>
+                    </button>
+                </div>
             </div>
 
-            <!-- Filter bar & Select All Controls -->
-            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs bg-slate-50 dark:bg-slate-700/40 p-3 rounded-xl border border-slate-200 dark:border-slate-700">
+            <!-- Filter bar & Fast Selection Controls -->
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs bg-slate-50 dark:bg-slate-700/40 p-2.5 sm:p-3 rounded-xl border border-slate-200 dark:border-slate-700">
                 <div class="relative flex-1">
                     <i class="fa-solid fa-magnifying-glass absolute left-3 top-2.5 text-slate-400"></i>
-                    <input type="text" id="vgmSearchInput" oninput="filterViewGroupMembers()" placeholder="Filtruj członków grupy (nazwisko, imię, numer, miasto)..." class="w-full pl-8 pr-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-white outline-none focus:ring-2 focus:ring-blue-500">
+                    <input type="text" id="vgmSearchInput" oninput="handleVgmSearchInput(this.value)" placeholder="Szybkie wyszukiwanie (nazwisko, imię, numer, miasto)..." class="w-full pl-8 pr-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-white outline-none focus:ring-2 focus:ring-blue-500">
                 </div>
-                <div class="flex items-center gap-3 flex-wrap">
-                    <label class="inline-flex items-center gap-1.5 cursor-pointer font-semibold text-slate-700 dark:text-slate-200">
+                <div class="flex items-center gap-3 flex-wrap justify-between sm:justify-end">
+                    <label class="inline-flex items-center gap-1.5 cursor-pointer font-semibold text-slate-700 dark:text-slate-200" title="Zaznacz wszystkie kontakty w całej grupie">
                         <input type="checkbox" id="vgmSelectAllCheckbox" onchange="toggleVgmSelectAll(this.checked)" class="rounded border-slate-300 text-blue-600 focus:ring-blue-500">
-                        <span>Zaznacz wszystkich</span>
+                        <span>Zaznacz wszystkie w grupie</span>
                     </label>
                     <span id="vgmSelectedCounterBadge" class="font-bold px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300 border border-blue-200 dark:border-blue-800/40">
                         Wybrano: 0
@@ -1560,12 +1565,14 @@
                 </div>
             </div>
 
-            <!-- Members Table / List -->
-            <div class="flex-1 overflow-y-auto custom-scrollbar rounded-xl border border-slate-200 dark:border-slate-700">
+            <!-- Members Table / List with Fixed Height & Fast Virtual Chunk Rendering -->
+            <div class="flex-1 overflow-y-auto max-h-[50vh] custom-scrollbar rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
                 <table class="w-full text-left text-xs">
-                    <thead class="bg-slate-50 dark:bg-slate-700/60 uppercase font-bold text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700 sticky top-0 z-10">
+                    <thead class="bg-slate-50 dark:bg-slate-700/60 uppercase font-bold text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700 sticky top-0 z-10 shadow-sm backdrop-blur-sm">
                         <tr>
-                            <th class="py-2.5 px-3 w-10 text-center">#</th>
+                            <th class="py-2.5 px-3 w-10 text-center">
+                                <input type="checkbox" id="vgmSelectPageCheckbox" onchange="toggleVgmSelectPage(this.checked)" class="rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer" title="Zaznacz stronę">
+                            </th>
                             <th class="py-2.5 px-3">Imię i Nazwisko</th>
                             <th class="py-2.5 px-3">Numer telefonu</th>
                             <th class="py-2.5 px-3">E-mail / Miasto</th>
@@ -1573,19 +1580,42 @@
                         </tr>
                     </thead>
                     <tbody id="vgmTableBody" class="divide-y divide-slate-100 dark:divide-slate-700/50 font-medium">
-                        <!-- Dynamic member rows -->
+                        <!-- Fast paginated member rows -->
                     </tbody>
                 </table>
             </div>
 
+            <!-- Pagination & Page Size Toolbar -->
+            <div class="flex flex-col sm:flex-row items-center justify-between gap-2.5 text-xs text-slate-500 dark:text-slate-400 pt-1">
+                <div class="flex items-center gap-3">
+                    <span id="vgmPaginationInfo">Wyświetlono 0 kontaktów</span>
+                    <div class="flex items-center gap-1">
+                        <span class="text-[11px]">Na stronę:</span>
+                        <select id="vgmPerPageSelect" onchange="changeVgmPerPage(this.value)" class="py-1 px-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-semibold outline-none">
+                            <option value="25">25</option>
+                            <option value="50" selected>50</option>
+                            <option value="100">100</option>
+                            <option value="250">250</option>
+                            <option value="500">500</option>
+                        </select>
+                    </div>
+                </div>
+                <div id="vgmPaginationButtons" class="flex items-center gap-1 flex-wrap justify-center">
+                    <!-- Pagination Page Buttons -->
+                </div>
+            </div>
+
             <!-- Footer Actions -->
             <div class="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-slate-100 dark:border-slate-700 text-xs">
-                <button type="button" onclick="openDualListboxFromViewer()" class="px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 font-semibold flex items-center gap-1.5 transition-colors">
-                    <i class="fa-solid fa-user-pen text-blue-500"></i> Zarządzaj członkami grupy
+                <button type="button" onclick="openDualListboxFromViewer()" class="w-full sm:w-auto px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 font-semibold flex items-center justify-center gap-1.5 transition-colors">
+                    <i class="fa-solid fa-user-pen text-blue-500"></i> Zarządzaj składem grupy
                 </button>
-                <div class="flex items-center gap-2 w-full sm:w-auto">
-                    <button type="button" onclick="closeViewGroupMembersModal()" class="flex-1 sm:flex-initial px-4 py-2 border rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700 font-semibold">Zamknij</button>
-                    <button type="button" id="btnVgmSendSelectedSms" onclick="sendSmsToVgmSelected()" disabled class="flex-1 sm:flex-initial px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl font-bold transition-all shadow flex items-center justify-center gap-1.5">
+                <div class="flex items-center gap-2 flex-wrap justify-end w-full sm:w-auto">
+                    <button type="button" onclick="closeViewGroupMembersModal()" class="px-4 py-2 border border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700 font-semibold rounded-xl transition-colors">Zamknij</button>
+                    <button type="button" id="btnVgmSendAllGroupSms" onclick="sendSmsToGroup(currentVgmGroupId, currentVgmGroupName)" class="px-3.5 py-2 bg-emerald-50 dark:bg-emerald-900/40 hover:bg-emerald-100 text-emerald-700 dark:text-emerald-300 font-bold rounded-xl transition-colors border border-emerald-300 dark:border-emerald-800 flex items-center gap-1.5">
+                        <i class="fa-solid fa-users"></i> SMS do całej grupy
+                    </button>
+                    <button type="button" id="btnVgmSendSelectedSms" onclick="sendSmsToVgmSelected()" disabled class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl font-bold transition-all shadow flex items-center justify-center gap-1.5">
                         <i class="fa-solid fa-paper-plane"></i> Wyślij SMS do zaznaczonych (<span id="vgmSendCountSpan">0</span>)
                     </button>
                 </div>
@@ -3774,7 +3804,10 @@
                 return;
             }
 
-            container.innerHTML = list.map(c => {
+            const visibleItems = list.slice(0, 100);
+            const moreNote = list.length > 100 ? `<div class="p-2 text-center text-[11px] text-slate-400 italic bg-slate-100 dark:bg-slate-800 rounded-lg">Pokazano 100 z ${list.length} kontaktów. Użyj wyszukiwarki powyżej, aby zawęzić listę.</div>` : '';
+
+            container.innerHTML = visibleItems.map(c => {
                 const id = String(c.id);
                 const isChecked = transferSelectedLeftIds.has(id);
                 const name = `${c.first_name || ''} ${c.last_name || ''}`.trim() || 'Bez nazwy';
@@ -3789,7 +3822,7 @@
                         </div>
                     </label>
                 `;
-            }).join('');
+            }).join('') + moreNote;
         }
 
         function renderRightContactsList(filtered = null) {
@@ -3820,7 +3853,10 @@
                 return;
             }
 
-            container.innerHTML = list.map(c => {
+            const visibleItems = list.slice(0, 100);
+            const moreNote = list.length > 100 ? `<div class="p-2 text-center text-[11px] text-slate-400 italic bg-blue-50/50 dark:bg-slate-800 rounded-lg">Pokazano 100 z ${list.length} członków. Użyj wyszukiwarki powyżej, aby znaleźć pozostałych.</div>` : '';
+
+            container.innerHTML = visibleItems.map(c => {
                 const id = String(c.id);
                 const isChecked = transferSelectedRightIds.has(id);
                 const name = `${c.first_name || ''} ${c.last_name || ''}`.trim() || 'Bez nazwy';
@@ -3848,7 +3884,7 @@
                         </div>
                     </div>
                 `;
-            }).join('');
+            }).join('') + moreNote;
         }
 
         function toggleLeftContact(id, checked) {
@@ -4171,18 +4207,22 @@
         }
 
         // ==========================================
-        // View Group Members & Selective SMS Sender
+        // View Group Members & Selective SMS Sender (High Performance & Paginated)
         // ==========================================
         let currentVgmGroupId = null;
         let currentVgmGroupName = '';
         let vgmAllMembers = [];
         let vgmFilteredMembers = [];
         let vgmSelectedIds = new Set();
+        let vgmCurrentPage = 1;
+        let vgmPerPage = 50;
+        let vgmSearchDebounceTimer = null;
 
-        async function openViewGroupMembersModal(groupId, groupName) {
+        async function openViewGroupMembersModal(groupId, groupName, forceRefresh = false) {
             currentVgmGroupId = groupId;
             currentVgmGroupName = groupName;
             vgmSelectedIds.clear();
+            vgmCurrentPage = 1;
 
             const modal = document.getElementById('viewGroupMembersModal');
             const groupBadge = document.getElementById('vgmGroupNameBadge');
@@ -4190,37 +4230,54 @@
             const tbody = document.getElementById('vgmTableBody');
             const searchInput = document.getElementById('vgmSearchInput');
             const selectAllChk = document.getElementById('vgmSelectAllCheckbox');
+            const selectPageChk = document.getElementById('vgmSelectPageCheckbox');
 
             if (modal) modal.classList.remove('hidden');
             if (groupBadge) groupBadge.textContent = groupName;
             if (countBadge) countBadge.textContent = 'Ładowanie...';
             if (searchInput) searchInput.value = '';
             if (selectAllChk) selectAllChk.checked = false;
+            if (selectPageChk) selectPageChk.checked = false;
 
             if (tbody) {
                 tbody.innerHTML = `
                     <tr>
-                        <td colspan="5" class="py-10 text-center text-slate-400">
-                            <i class="fa-solid fa-spinner fa-spin text-xl text-blue-500 mb-2"></i>
-                            <div>Wczytywanie członków grupy "${groupName}"...</div>
+                        <td colspan="5" class="py-12 text-center text-slate-400">
+                            <i class="fa-solid fa-spinner fa-spin text-2xl text-blue-500 mb-2.5"></i>
+                            <div class="font-bold text-slate-700 dark:text-slate-200 text-sm">Wczytywanie członków grupy "${groupName}"...</div>
+                            <div class="text-[11px] text-slate-400 mt-1">Trwa błyskawiczne pobieranie kontaktów z bazy SMSAPI...</div>
                         </td>
                     </tr>
                 `;
             }
 
             try {
-                const res = await fetch(`/api/contacts/groups/${groupId}/members`);
+                const refreshParam = forceRefresh ? '?refresh=1' : '';
+                const res = await fetch(`/api/contacts/groups/${groupId}/members${refreshParam}`);
                 const data = await res.json();
                 vgmAllMembers = data.members || [];
                 vgmFilteredMembers = [...vgmAllMembers];
 
-                if (countBadge) countBadge.textContent = `${vgmAllMembers.length} osób`;
+                const totalDisplay = data.total || vgmAllMembers.length;
+                if (countBadge) countBadge.textContent = `${totalDisplay.toLocaleString()} osób`;
+                
+                const btnAll = document.getElementById('btnVgmSendAllGroupSms');
+                if (btnAll) {
+                    btnAll.innerHTML = `<i class="fa-solid fa-users"></i> SMS do całej grupy (${totalDisplay.toLocaleString()})`;
+                }
+
                 renderViewGroupMembersList();
             } catch (err) {
                 console.error("openViewGroupMembersModal error:", err);
                 if (tbody) {
-                    tbody.innerHTML = `<tr><td colspan="5" class="py-8 text-center text-rose-500">Błąd wczytywania: ${err.message}</td></tr>`;
+                    tbody.innerHTML = `<tr><td colspan="5" class="py-8 text-center text-rose-500 font-bold">Błąd wczytywania: ${err.message}</td></tr>`;
                 }
+            }
+        }
+
+        function refreshCurrentViewGroupMembers() {
+            if (currentVgmGroupId) {
+                openViewGroupMembersModal(currentVgmGroupId, currentVgmGroupName, true);
             }
         }
 
@@ -4228,20 +4285,38 @@
             document.getElementById('viewGroupMembersModal')?.classList.add('hidden');
         }
 
-        function filterViewGroupMembers() {
-            const query = (document.getElementById('vgmSearchInput')?.value || '').toLowerCase().trim();
-            if (!query) {
-                vgmFilteredMembers = [...vgmAllMembers];
-            } else {
-                vgmFilteredMembers = vgmAllMembers.filter(m => {
-                    const fn = (m.first_name || '').toLowerCase();
-                    const ln = (m.last_name || '').toLowerCase();
-                    const phone = (m.phone_number || '').toLowerCase();
-                    const email = (m.email || '').toLowerCase();
-                    const city = (m.city || '').toLowerCase();
-                    return fn.includes(query) || ln.includes(query) || phone.includes(query) || email.includes(query) || city.includes(query);
-                });
-            }
+        function handleVgmSearchInput(val) {
+            clearTimeout(vgmSearchDebounceTimer);
+            vgmSearchDebounceTimer = setTimeout(() => {
+                const query = (val || '').toLowerCase().trim();
+                if (!query) {
+                    vgmFilteredMembers = [...vgmAllMembers];
+                } else {
+                    vgmFilteredMembers = vgmAllMembers.filter(m => {
+                        const fn = (m.first_name || '').toLowerCase();
+                        const ln = (m.last_name || '').toLowerCase();
+                        const phone = (m.phone_number || '').toLowerCase();
+                        const email = (m.email || '').toLowerCase();
+                        const city = (m.city || '').toLowerCase();
+                        return fn.includes(query) || ln.includes(query) || phone.includes(query) || email.includes(query) || city.includes(query);
+                    });
+                }
+                vgmCurrentPage = 1;
+                renderViewGroupMembersList();
+            }, 100);
+        }
+
+        function changeVgmPerPage(newVal) {
+            vgmPerPage = parseInt(newVal, 10) || 50;
+            vgmCurrentPage = 1;
+            renderViewGroupMembersList();
+        }
+
+        function goToVgmPage(page) {
+            const totalPages = Math.ceil(vgmFilteredMembers.length / vgmPerPage) || 1;
+            if (page < 1) page = 1;
+            if (page > totalPages) page = totalPages;
+            vgmCurrentPage = page;
             renderViewGroupMembersList();
         }
 
@@ -4251,21 +4326,67 @@
             const btnSend = document.getElementById('btnVgmSendSelectedSms');
             const sendCountSpan = document.getElementById('vgmSendCountSpan');
             const selectAllChk = document.getElementById('vgmSelectAllCheckbox');
+            const selectPageChk = document.getElementById('vgmSelectPageCheckbox');
+            const paginationInfo = document.getElementById('vgmPaginationInfo');
+            const paginationButtons = document.getElementById('vgmPaginationButtons');
 
+            const total = vgmFilteredMembers.length;
+            const totalPages = Math.ceil(total / vgmPerPage) || 1;
+            if (vgmCurrentPage > totalPages) vgmCurrentPage = totalPages;
+
+            const startIndex = total > 0 ? (vgmCurrentPage - 1) * vgmPerPage : 0;
+            const endIndex = Math.min(startIndex + vgmPerPage, total);
+            const pageItems = vgmFilteredMembers.slice(startIndex, endIndex);
+
+            // Update Counters & Buttons
             const count = vgmSelectedIds.size;
-            if (selectedCounter) selectedCounter.textContent = `Wybrano: ${count}`;
-            if (sendCountSpan) sendCountSpan.textContent = count;
-            if (btnSend) {
-                btnSend.disabled = (count === 0);
+            if (selectedCounter) selectedCounter.textContent = `Wybrano: ${count.toLocaleString()}`;
+            if (sendCountSpan) sendCountSpan.textContent = count.toLocaleString();
+            if (btnSend) btnSend.disabled = (count === 0);
+
+            // Checkbox state for select all and select page
+            if (selectAllChk) {
+                selectAllChk.checked = (total > 0 && vgmFilteredMembers.every(m => vgmSelectedIds.has(String(m.id))));
+            }
+            if (selectPageChk) {
+                selectPageChk.checked = (pageItems.length > 0 && pageItems.every(m => vgmSelectedIds.has(String(m.id))));
             }
 
-            if (selectAllChk) {
-                selectAllChk.checked = (vgmFilteredMembers.length > 0 && vgmFilteredMembers.every(m => vgmSelectedIds.has(String(m.id))));
+            // Pagination Info & Buttons
+            if (paginationInfo) {
+                paginationInfo.innerHTML = total > 0
+                    ? `Wyświetlono <b>${(startIndex + 1).toLocaleString()}–${endIndex.toLocaleString()}</b> z <b>${total.toLocaleString()}</b> (Strona <b>${vgmCurrentPage}</b> z <b>${totalPages}</b>)`
+                    : `Brak kontaktów`;
+            }
+
+            if (paginationButtons) {
+                if (totalPages <= 1) {
+                    paginationButtons.innerHTML = '';
+                } else {
+                    let html = '';
+                    html += `<button type="button" onclick="goToVgmPage(1)" ${vgmCurrentPage === 1 ? 'disabled class="px-2 py-1 rounded border opacity-40 cursor-not-allowed"' : 'class="px-2 py-1 rounded border hover:bg-slate-100 dark:hover:bg-slate-700 font-semibold"'} title="Pierwsza strona">«</button>`;
+                    html += `<button type="button" onclick="goToVgmPage(${vgmCurrentPage - 1})" ${vgmCurrentPage === 1 ? 'disabled class="px-2 py-1 rounded border opacity-40 cursor-not-allowed"' : 'class="px-2 py-1 rounded border hover:bg-slate-100 dark:hover:bg-slate-700 font-semibold"'} title="Poprzednia strona">‹</button>`;
+
+                    // Show window of page pills
+                    const startP = Math.max(1, vgmCurrentPage - 2);
+                    const endP = Math.min(totalPages, startP + 4);
+                    for (let p = startP; p <= endP; p++) {
+                        if (p === vgmCurrentPage) {
+                            html += `<button type="button" class="px-2.5 py-1 rounded bg-blue-600 text-white font-bold">${p}</button>`;
+                        } else {
+                            html += `<button type="button" onclick="goToVgmPage(${p})" class="px-2.5 py-1 rounded border hover:bg-slate-100 dark:hover:bg-slate-700 font-semibold">${p}</button>`;
+                        }
+                    }
+
+                    html += `<button type="button" onclick="goToVgmPage(${vgmCurrentPage + 1})" ${vgmCurrentPage === totalPages ? 'disabled class="px-2 py-1 rounded border opacity-40 cursor-not-allowed"' : 'class="px-2 py-1 rounded border hover:bg-slate-100 dark:hover:bg-slate-700 font-semibold"'} title="Następna strona">›</button>`;
+                    html += `<button type="button" onclick="goToVgmPage(${totalPages})" ${vgmCurrentPage === totalPages ? 'disabled class="px-2 py-1 rounded border opacity-40 cursor-not-allowed"' : 'class="px-2 py-1 rounded border hover:bg-slate-100 dark:hover:bg-slate-700 font-semibold"'} title="Ostatnia strona">»</button>`;
+                    paginationButtons.innerHTML = html;
+                }
             }
 
             if (!tbody) return;
 
-            if (vgmFilteredMembers.length === 0) {
+            if (total === 0) {
                 tbody.innerHTML = `
                     <tr>
                         <td colspan="5" class="py-10 text-center text-slate-400">
@@ -4273,14 +4394,14 @@
                                 <i class="fa-solid fa-user-slash text-base"></i>
                             </div>
                             <div class="font-semibold text-slate-600 dark:text-slate-300">Brak kontaktów w tej grupie lub żaden kontakt nie pasuje do filtra.</div>
-                            <div class="text-[11px] text-slate-400 mt-1">Użyj przycisku "Zarządzaj członkami grupy" poniżej, aby dodać osoby.</div>
+                            <div class="text-[11px] text-slate-400 mt-1">Użyj przycisku "Zarządzaj składem grupy" poniżej, aby dodać osoby.</div>
                         </td>
                     </tr>
                 `;
                 return;
             }
 
-            tbody.innerHTML = vgmFilteredMembers.map((m, index) => {
+            tbody.innerHTML = pageItems.map((m) => {
                 const idStr = String(m.id);
                 const isChecked = vgmSelectedIds.has(idStr);
                 const initial = (m.first_name?.[0] || m.last_name?.[0] || 'K').toUpperCase();
@@ -4334,6 +4455,18 @@
             } else {
                 vgmFilteredMembers.forEach(m => vgmSelectedIds.delete(String(m.id)));
             }
+            renderViewGroupMembersList();
+        }
+
+        function toggleVgmSelectPage(checked) {
+            const startIndex = (vgmCurrentPage - 1) * vgmPerPage;
+            const endIndex = Math.min(startIndex + vgmPerPage, vgmFilteredMembers.length);
+            const pageItems = vgmFilteredMembers.slice(startIndex, endIndex);
+
+            pageItems.forEach(m => {
+                if (checked) vgmSelectedIds.add(String(m.id));
+                else vgmSelectedIds.delete(String(m.id));
+            });
             renderViewGroupMembersList();
         }
 
