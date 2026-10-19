@@ -81,14 +81,9 @@ def main():
 
     url = f"http://localhost:{FIXED_PORT}"
 
-    # Single-instance check
-    if is_app_already_running(FIXED_PORT):
-        print(f"[INFO] Aplikacja już działa pod adresem {url}. Otwieranie przeglądarki...")
-        webbrowser.open(url)
-        sys.exit(0)
-
+    # Always ensure clean port so latest code is loaded on launch
     if is_port_in_use(FIXED_PORT):
-        print(f"[INFO] Zwalnianie portu {FIXED_PORT}...")
+        print(f"[INFO] Zamykanie poprzedniej instancji i zwalnianie portu {FIXED_PORT}...")
         free_port(FIXED_PORT)
 
     threading.Thread(target=open_browser, args=(url,), daemon=True).start()

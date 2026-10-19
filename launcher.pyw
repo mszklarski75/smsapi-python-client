@@ -77,19 +77,14 @@ def open_browser(url: str):
 def main():
     url = f"http://localhost:{FIXED_PORT}"
 
-    # 1. Single Instance check: if app is already running, just open browser and exit!
-    if is_app_already_running(FIXED_PORT):
-        webbrowser.open(url)
-        sys.exit(0)
-
-    # 2. If port is held by an unresponsive zombie process, free it
+    # Always clean stale instance on launch to guarantee latest code
     if is_port_in_use(FIXED_PORT):
         free_port(FIXED_PORT)
 
-    # 3. Open browser on launch
+    # Open browser on launch
     threading.Thread(target=open_browser, args=(url,), daemon=True).start()
 
-    # 4. Run Flask silently on fixed port 5000
+    # Run Flask silently on fixed port 5000
     import logging
     log = logging.getLogger('werkzeug')
     log.setLevel(logging.ERROR)

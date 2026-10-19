@@ -69,7 +69,15 @@ if %errorlevel% equ 0 (
 )
 
 :START_SERVICES
-:: 2. Uruchom serwer Flask w tle
+:: 2. Zwolnij poprzednie procesy tła
+taskkill /f /im pythonw.exe >nul 2>&1
+for /f "tokens=5" %%a in ('netstat -aon ^| findstr ":5000" ^| findstr "LISTENING"') do (
+    if not "%%a"=="0" (
+        taskkill /f /pid %%a >nul 2>&1
+    )
+)
+
+:: 3. Uruchom serwer Flask w tle
 if not "%PYW_EXE%"=="" (
     start "" "%PYW_EXE%" "%~dp0launcher.pyw"
 ) else (

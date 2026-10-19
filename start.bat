@@ -90,6 +90,15 @@ exit /b 1
 
 :FOUND
 echo [OK] Znaleziono Python: "%PY_EXE%"
+echo [OK] Zamykanie poprzednich procesow i zwalnianie portu 5000...
+
+taskkill /f /im pythonw.exe >nul 2>&1
+for /f "tokens=5" %%a in ('netstat -aon ^| findstr ":5000" ^| findstr "LISTENING"') do (
+    if not "%%a"=="0" (
+        taskkill /f /pid %%a >nul 2>&1
+    )
+)
+
 echo [OK] Uruchamianie aplikacji SMSAPI Studio...
 echo.
 
