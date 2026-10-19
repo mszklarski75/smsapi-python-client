@@ -1066,8 +1066,11 @@
 
                 <div class="bg-white dark:bg-slate-800 p-5 sm:p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-4">
                     <div class="flex flex-wrap items-center gap-3">
-                        <input type="text" id="historySearch" placeholder="Szukaj po odbiorcy, treści lub użytkowniku..." oninput="debounce(fetchHistory, 150)()" class="flex-1 min-w-[200px] px-3.5 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white outline-none focus:ring-2 focus:ring-blue-500">
-                        <select id="historyTypeFilter" onchange="fetchHistory()" class="px-3.5 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white outline-none font-medium">
+                        <div class="relative flex-1 min-w-[200px]">
+                            <i class="fa-solid fa-magnifying-glass absolute left-3 top-2.5 text-slate-400 text-xs"></i>
+                            <input type="text" id="historySearch" placeholder="Szukaj po numerze odbiorcy, treści, nadawcy lub użytkowniku..." oninput="handleHistorySearch(this.value)" class="w-full pl-8 pr-3.5 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700/50 text-slate-800 dark:text-white outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+                        <select id="historyTypeFilter" onchange="fetchHistory(1)" class="px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700/50 text-slate-800 dark:text-white outline-none font-medium">
                             <option value="">Wszystkie typy</option>
                             <option value="SMS">SMS standardowy</option>
                             <option value="SMS_FLASH">SMS Flash</option>
@@ -1075,17 +1078,27 @@
                             <option value="MFA">MFA / 2FA</option>
                             <option value="VMS">VMS Głosowy</option>
                             <option value="MMS">MMS</option>
+                            <option value="IMPORT_CSV">Import masowy</option>
                         </select>
-                        <button onclick="fetchHistory()" class="px-3.5 py-2 bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/60 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5">
-                            <i class="fa-solid fa-filter"></i> Filtruj
+                        <select id="historyStatusFilter" onchange="fetchHistory(1)" class="px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700/50 text-slate-800 dark:text-white outline-none font-medium">
+                            <option value="">Wszystkie statusy</option>
+                            <option value="DELIVERED">✅ Doręczona (DELIVERED)</option>
+                            <option value="SENT">📤 Wysłana (SENT)</option>
+                            <option value="UNDELIVERED">❌ Niedoręczona (UNDELIVERED)</option>
+                            <option value="EXPIRED">⏳ Wygasła (EXPIRED)</option>
+                            <option value="FAILED">⚠️ Błąd (FAILED)</option>
+                        </select>
+                        <button onclick="fetchHistory(1)" class="px-3.5 py-2 bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/60 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 shadow-sm">
+                            <i class="fa-solid fa-arrows-rotate"></i> Odśwież
                         </button>
                     </div>
 
-                    <div class="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700">
+                    <!-- Scrollable Table Container with Custom Scrollbar & Sticky Header -->
+                    <div class="overflow-x-auto overflow-y-auto max-h-[62vh] custom-scrollbar rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
                         <table class="w-full text-left text-xs">
-                            <thead class="bg-slate-50 dark:bg-slate-700/60 uppercase font-bold text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700">
+                            <thead class="bg-slate-50 dark:bg-slate-700/80 uppercase font-bold text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700 sticky top-0 z-10 shadow-sm backdrop-blur-sm">
                                 <tr>
-                                    <th class="py-2.5 px-3">Data i czas</th>
+                                    <th class="py-2.5 px-3 whitespace-nowrap">Data i czas</th>
                                     <th class="py-2.5 px-3">Użytkownik</th>
                                     <th class="py-2.5 px-3">Typ</th>
                                     <th class="py-2.5 px-3">Nadawca</th>
@@ -1101,6 +1114,25 @@
                                 </tr>
                             </tbody>
                         </table>
+                    </div>
+
+                    <!-- Pagination Toolbar -->
+                    <div class="flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500 dark:text-slate-400 pt-2 border-t border-slate-100 dark:border-slate-700">
+                        <div class="flex items-center gap-3">
+                            <span id="historyPaginationInfo">Wyświetlono 0 wpisów</span>
+                            <div class="flex items-center gap-1.5">
+                                <span class="text-[11px]">Na stronę:</span>
+                                <select id="historyPerPageSelect" onchange="changeHistoryPerPage(this.value)" class="py-1 px-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-semibold outline-none">
+                                    <option value="25">25</option>
+                                    <option value="50" selected>50</option>
+                                    <option value="100">100</option>
+                                    <option value="250">250</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div id="historyPaginationButtons" class="flex items-center gap-1 flex-wrap justify-center">
+                            <!-- Dynamic pagination buttons -->
+                        </div>
                     </div>
                 </div>
             </section>
@@ -5221,38 +5253,143 @@
             });
         }
 
-        async function fetchHistory() {
-            try {
-                const q = document.getElementById('historySearch')?.value || '';
-                const type = document.getElementById('historyTypeFilter')?.value || '';
-                const tbody = document.getElementById('historyTableBody');
+        // ==========================================
+        // History & Logs Logic (Paginated, Searchable & Scrollable)
+        // ==========================================
+        let historyCurrentPage = 1;
+        let historyPerPage = 50;
+        let historyTotal = 0;
+        let historySearchDebounceTimer = null;
 
-                const res = await fetch(`/api/history?q=${encodeURIComponent(q)}&type=${encodeURIComponent(type)}`);
+        function handleHistorySearch(val) {
+            clearTimeout(historySearchDebounceTimer);
+            historySearchDebounceTimer = setTimeout(() => {
+                fetchHistory(1);
+            }, 150);
+        }
+
+        function changeHistoryPerPage(newVal) {
+            historyPerPage = parseInt(newVal, 10) || 50;
+            fetchHistory(1);
+        }
+
+        function goToHistoryPage(page) {
+            const totalPages = Math.ceil(historyTotal / historyPerPage) || 1;
+            if (page < 1) page = 1;
+            if (page > totalPages) page = totalPages;
+            fetchHistory(page);
+        }
+
+        async function fetchHistory(page = 1) {
+            historyCurrentPage = page;
+            const offset = (historyCurrentPage - 1) * historyPerPage;
+            const q = document.getElementById('historySearch')?.value || '';
+            const type = document.getElementById('historyTypeFilter')?.value || '';
+            const status = document.getElementById('historyStatusFilter')?.value || '';
+            const tbody = document.getElementById('historyTableBody');
+            const info = document.getElementById('historyPaginationInfo');
+            const btnContainer = document.getElementById('historyPaginationButtons');
+
+            if (tbody) {
+                tbody.innerHTML = `<tr><td colspan="8" class="py-10 text-center text-slate-400"><i class="fa-solid fa-spinner fa-spin mr-2 text-blue-500"></i>Wczytywanie historii...</td></tr>`;
+            }
+
+            try {
+                const res = await fetch(`/api/history?limit=${historyPerPage}&offset=${offset}&q=${encodeURIComponent(q)}&type=${encodeURIComponent(type)}&status=${encodeURIComponent(status)}`);
                 const data = await res.json();
                 const list = data.history || [];
+                historyTotal = typeof data.total === 'number' ? data.total : list.length;
+                const totalPages = Math.ceil(historyTotal / historyPerPage) || 1;
+
+                const startIdx = historyTotal > 0 ? offset + 1 : 0;
+                const endIdx = Math.min(offset + list.length, historyTotal);
+
+                if (info) {
+                    info.innerHTML = historyTotal > 0
+                        ? `Wyświetlono <b>${startIdx.toLocaleString()}–${endIdx.toLocaleString()}</b> z <b>${historyTotal.toLocaleString()}</b> (Strona <b>${historyCurrentPage}</b> z <b>${totalPages}</b>)`
+                        : `Brak wpisów`;
+                }
+
+                if (btnContainer) {
+                    if (totalPages <= 1) {
+                        btnContainer.innerHTML = '';
+                    } else {
+                        let html = '';
+                        html += `<button type="button" onclick="goToHistoryPage(1)" ${historyCurrentPage === 1 ? 'disabled class="px-2 py-1 rounded border opacity-40 cursor-not-allowed"' : 'class="px-2 py-1 rounded border hover:bg-slate-100 dark:hover:bg-slate-700 font-semibold"'} title="Pierwsza strona">«</button>`;
+                        html += `<button type="button" onclick="goToHistoryPage(${historyCurrentPage - 1})" ${historyCurrentPage === 1 ? 'disabled class="px-2 py-1 rounded border opacity-40 cursor-not-allowed"' : 'class="px-2 py-1 rounded border hover:bg-slate-100 dark:hover:bg-slate-700 font-semibold"'} title="Poprzednia strona">‹</button>`;
+
+                        const startP = Math.max(1, historyCurrentPage - 2);
+                        const endP = Math.min(totalPages, startP + 4);
+                        for (let p = startP; p <= endP; p++) {
+                            if (p === historyCurrentPage) {
+                                html += `<button type="button" class="px-2.5 py-1 rounded bg-blue-600 text-white font-bold">${p}</button>`;
+                            } else {
+                                html += `<button type="button" onclick="goToHistoryPage(${p})" class="px-2.5 py-1 rounded border hover:bg-slate-100 dark:hover:bg-slate-700 font-semibold">${p}</button>`;
+                            }
+                        }
+
+                        html += `<button type="button" onclick="goToHistoryPage(${historyCurrentPage + 1})" ${historyCurrentPage === totalPages ? 'disabled class="px-2 py-1 rounded border opacity-40 cursor-not-allowed"' : 'class="px-2 py-1 rounded border hover:bg-slate-100 dark:hover:bg-slate-700 font-semibold"'} title="Następna strona">›</button>`;
+                        html += `<button type="button" onclick="goToHistoryPage(${totalPages})" ${historyCurrentPage === totalPages ? 'disabled class="px-2 py-1 rounded border opacity-40 cursor-not-allowed"' : 'class="px-2 py-1 rounded border hover:bg-slate-100 dark:hover:bg-slate-700 font-semibold"'} title="Ostatnia strona">»</button>`;
+                        btnContainer.innerHTML = html;
+                    }
+                }
 
                 if (list.length === 0) {
-                    tbody.innerHTML = `<tr><td colspan="8" class="py-8 text-center text-slate-400">Brak wpisów w historii.</td></tr>`;
+                    tbody.innerHTML = `<tr><td colspan="8" class="py-10 text-center text-slate-400">Brak wpisów spełniających kryteria wyszukiwania.</td></tr>`;
                     return;
                 }
 
-                tbody.innerHTML = list.map(item => `
-                    <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/30">
-                        <td class="py-2.5 px-3 text-slate-500 whitespace-nowrap">${item.created_at || ''}</td>
-                        <td class="py-2.5 px-3 font-semibold text-blue-600">${item.created_by || 'admin'}</td>
-                        <td class="py-2.5 px-3"><span class="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">${item.type}</span></td>
-                        <td class="py-2.5 px-3 font-semibold">${item.sender || '-'}</td>
-                        <td class="py-2.5 px-3 font-medium text-slate-800 dark:text-slate-200">${item.recipients}</td>
-                        <td class="py-2.5 px-3 text-slate-600 dark:text-slate-300 max-w-xs truncate" title="${item.message}">${item.message}</td>
-                        <td class="py-2.5 px-3">
-                            ${formatStatusBadge(item.status)}
-                        </td>
-                        <td class="py-2.5 px-3 text-right font-bold text-slate-700 dark:text-slate-200">${item.points_cost?.toFixed(2) || '0.00'} pkt</td>
-                    </tr>
-                `).join('');
+                tbody.innerHTML = list.map(item => {
+                    const safeMsg = (item.message || '').replace(/"/g, '&quot;');
+                    return `
+                        <tr class="hover:bg-blue-50/40 dark:hover:bg-slate-700/40 transition-colors">
+                            <td class="py-2.5 px-3 text-slate-500 whitespace-nowrap font-mono text-[11px]">${item.created_at || ''}</td>
+                            <td class="py-2.5 px-3 font-semibold text-blue-600 dark:text-blue-400">${item.created_by || 'admin'}</td>
+                            <td class="py-2.5 px-3"><span class="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 whitespace-nowrap">${item.type}</span></td>
+                            <td class="py-2.5 px-3 font-semibold whitespace-nowrap">${item.sender || '-'}</td>
+                            <td class="py-2.5 px-3 font-medium text-slate-800 dark:text-slate-200 max-w-[150px] truncate" title="${item.recipients}">
+                                <button onclick="fillSmsToNumber('${item.recipients}')" class="text-blue-600 dark:text-blue-400 hover:underline font-mono" title="Kliknij, aby wysłać nowy SMS do tego numeru">
+                                    ${item.recipients}
+                                </button>
+                            </td>
+                            <td class="py-2.5 px-3 text-slate-600 dark:text-slate-300 max-w-xs truncate cursor-pointer hover:text-blue-600 dark:hover:text-blue-400" onclick="showHistoryMessageDetails('${safeMsg.replace(/'/g, "\\'")}', '${item.recipients}', '${item.created_at}')" title="Kliknij, aby zobaczyć pełną treść">
+                                ${item.message || '<span class="italic text-slate-400">Brak treści</span>'}
+                            </td>
+                            <td class="py-2.5 px-3 whitespace-nowrap">
+                                ${formatStatusBadge(item.status)}
+                            </td>
+                            <td class="py-2.5 px-3 text-right font-bold text-slate-700 dark:text-slate-200 whitespace-nowrap">${item.points_cost?.toFixed(2) || '0.00'} pkt</td>
+                        </tr>
+                    `;
+                }).join('');
             } catch (e) {
                 console.error(e);
+                if (tbody) {
+                    tbody.innerHTML = `<tr><td colspan="8" class="py-8 text-center text-rose-500 font-bold">Błąd pobierania historii: ${e.message}</td></tr>`;
+                }
             }
+        }
+
+        function showHistoryMessageDetails(message, recipients, date) {
+            Swal.fire({
+                title: 'Szczegóły wiadomości',
+                html: `
+                    <div class="text-left text-xs space-y-3">
+                        <div class="p-3 bg-slate-50 dark:bg-slate-700/50 rounded-xl border border-slate-200 dark:border-slate-600 space-y-1">
+                            <div><b>Data:</b> ${date || '-'}</div>
+                            <div><b>Odbiorcy:</b> <span class="font-mono text-blue-600 dark:text-blue-400">${recipients || '-'}</span></div>
+                        </div>
+                        <div>
+                            <label class="block font-bold mb-1 text-slate-700 dark:text-slate-200">Treść wiadomości (${message.length} znaków):</label>
+                            <div class="p-3 bg-slate-100 dark:bg-slate-900 rounded-xl text-xs font-sans whitespace-pre-wrap select-text border border-slate-200 dark:border-slate-700 max-h-60 overflow-y-auto">
+                                ${message}
+                            </div>
+                        </div>
+                    </div>
+                `,
+                confirmButtonText: 'Zamknij',
+                confirmButtonColor: '#2563eb'
+            });
         }
 
         async function confirmClearHistory() {
@@ -5261,7 +5398,7 @@
             if (!confirm.isConfirmed) return;
             try {
                 await fetch('/api/history', { method: 'DELETE' });
-                fetchHistory();
+                fetchHistory(1);
                 fetchStats();
             } catch (e) { console.error(e); }
         }

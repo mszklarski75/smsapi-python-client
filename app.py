@@ -2308,26 +2308,45 @@ def get_inbox():
 def get_history():
     search = request.args.get('q', '').strip()
     msg_type = request.args.get('type', '').strip()
-    limit = int(request.args.get('limit', 100))
+    status_filter = request.args.get('status', '').strip()
+    limit = max(1, min(1000, int(request.args.get('limit', 50))))
+    offset = max(0, int(request.args.get('offset', 0)))
 
     with get_db() as conn:
         cursor = conn.cursor()
-        query = 'SELECT * FROM history WHERE 1=1'
+
+        where_clauses = ['1=1']
         params = []
         if search:
-            query += ' AND (recipients LIKE ? OR message LIKE ? OR sender LIKE ? OR created_by LIKE ?)'
-            params.extend([f'%{search}%', f'%{search}%', f'%{search}%', f'%{search}%'])
+            where_clauses.append('(recipients LIKE ? OR message LIKE ? OR sender LIKE ? OR created_by LIKE ? OR msg_ids LIKE ?)')
+            params.extend([f'%{search}%', f'%{search}%', f'%{search}%', f'%{search}%', f'%{search}%'])
         if msg_type:
-            query += ' AND type LIKE ?'
+            where_clauses.append('type LIKE ?')
             params.append(f'%{msg_type}%')
-        query += ' ORDER BY id DESC LIMIT ?'
-        params.append(limit)
+        if status_filter:
+            where_clauses.append('status LIKE ?')
+            params.append(f'%{status_filter}%')
 
-        cursor.execute(query, params)
+        where_sql = ' AND '.join(where_clauses)
+
+        # 1. Total matching count
+        cursor.execute(f'SELECT COUNT(*) FROM history WHERE {where_sql}', params)
+        total_count = cursor.fetchone()[0]
+
+        # 2. Paginated rows
+        query = f'SELECT * FROM history WHERE {where_sql} ORDER BY id DESC LIMIT ? OFFSET ?'
+        query_params = list(params) + [limit, offset]
+        cursor.execute(query, query_params)
         rows = cursor.fetchall()
         history_list = [dict(row) for row in rows]
 
-    return jsonify({'success': True, 'history': history_list})
+    return jsonify({
+        'success': True,
+        'history': history_list,
+        'total': total_count,
+        'limit': limit,
+        'offset': offset
+    })
 
 
 @app.route('/api/history', methods=['DELETE'])
