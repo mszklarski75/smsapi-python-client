@@ -29,14 +29,67 @@
     <!-- SweetAlert2 for notifications -->
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+        html {
+            height: 100%;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            min-height: 100%;
+            -webkit-text-size-adjust: 100%;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        /* Responsive Mobile / Desktop Scrolling Modes */
+        @media (max-width: 1023px) {
+            html, body {
+                height: auto !important;
+                min-height: 100% !important;
+                overflow-x: hidden !important;
+                overflow-y: auto !important;
+            }
+            #appRootLayout {
+                height: auto !important;
+                min-height: calc(100vh - 4rem) !important;
+                overflow: visible !important;
+            }
+            #mainContentScroll {
+                height: auto !important;
+                overflow: visible !important;
+                padding-bottom: 7rem !important;
+            }
+        }
+
+        @media (min-width: 1024px) {
+            html, body {
+                height: 100%;
+                overflow: hidden;
+            }
+            #appRootLayout {
+                height: calc(100vh - 4rem);
+                overflow: hidden;
+            }
+            #mainContentScroll {
+                height: 100%;
+                overflow-y: auto;
+            }
+        }
+
         .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
         .dark .custom-scrollbar::-webkit-scrollbar-thumb { background: #475569; }
+
+        /* Ensure smooth horizontal touch scrolling on mobile tables */
+        .table-responsive-container {
+            width: 100%;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
     </style>
 </head>
-<body class="min-h-screen bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 antialiased overflow-hidden flex flex-col">
+<body class="min-h-screen bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 antialiased flex flex-col">
 
     <!-- LOGIN OVERLAY SCREEN (Shown if not logged in - optimized without heavy backdrop blur) -->
     <div id="loginScreen" class="fixed inset-0 bg-slate-950/85 z-50 flex items-center justify-center p-4">
@@ -145,7 +198,7 @@
     <!-- Mobile Sidebar Backdrop Overlay -->
     <div id="mobileSidebarBackdrop" onclick="closeMobileSidebar()" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-30 hidden lg:hidden transition-opacity"></div>
 
-    <div class="flex flex-1 overflow-hidden relative bg-slate-50 dark:bg-slate-900">
+    <div id="appRootLayout" class="flex flex-1 relative bg-slate-50 dark:bg-slate-900 w-full min-h-0">
         <!-- Sidebar Navigation (Responsive: Off-canvas drawer on mobile, docked on desktop) -->
         <aside id="mainSidebar" class="fixed inset-y-0 left-0 z-40 w-72 lg:w-64 bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 flex flex-col justify-between p-4 flex-shrink-0 overflow-y-auto custom-scrollbar transform -translate-x-full lg:translate-x-0 lg:static transition-transform duration-200 ease-in-out shadow-2xl lg:shadow-none">
             
@@ -227,8 +280,8 @@
             </div>
         </aside>
 
-        <!-- Main Content Area -->
-        <main class="flex-1 overflow-y-auto custom-scrollbar p-3.5 sm:p-6 lg:p-8 pb-24 lg:pb-8 bg-slate-50 dark:bg-slate-900">
+        <!-- Main Content Area (Fluid touch scrolling on mobile, custom scrollbar on desktop) -->
+        <main id="mainContentScroll" class="flex-1 w-full min-w-0 p-3 sm:p-5 lg:p-8 bg-slate-50 dark:bg-slate-900 custom-scrollbar">
 
             <!-- TAB 1: DASHBOARD -->
             <section id="tab-dashboard" class="tab-content max-w-7xl mx-auto w-full space-y-6">
@@ -361,8 +414,8 @@
                             <button onclick="switchTab('history')" class="text-xs text-blue-600 hover:underline font-medium">Zobacz pełną historię</button>
                         </div>
 
-                        <div class="flex-1 overflow-x-auto">
-                            <table class="w-full text-left text-sm">
+                        <div class="flex-1 overflow-x-auto table-responsive-container">
+                            <table class="w-full min-w-[520px] text-left text-sm">
                                 <thead class="text-xs text-slate-400 uppercase border-b border-slate-200 dark:border-slate-700">
                                     <tr>
                                         <th class="py-2.5 px-3">Data</th>
@@ -386,13 +439,13 @@
 
             <!-- TAB 2: SMS SEND CENTER -->
             <section id="tab-sms-send" class="tab-content hidden max-w-7xl mx-auto w-full space-y-6">
-                <div class="flex items-center justify-between">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div>
                         <h2 class="text-xl font-bold text-slate-800 dark:text-white">Centrum Wysyłki SMS</h2>
                         <p class="text-xs text-slate-500 mt-0.5">Wysyłaj pojedyncze lub grupowe wiadomości z pełną personalizacją.</p>
                     </div>
                     <!-- Template quick loader -->
-                    <div class="flex items-center gap-2">
+                    <div class="flex items-center gap-2 flex-wrap">
                         <label class="text-xs text-slate-500 font-medium">Wstaw szablon:</label>
                         <select id="smsTemplateSelect" onchange="applySmsTemplate(this.value)" class="text-xs px-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700 outline-none">
                             <option value="">-- Wybierz szablon --</option>
@@ -621,8 +674,8 @@
                         <h3 class="font-bold text-base mb-3 flex items-center gap-2">
                             <i class="fa-solid fa-table text-blue-500"></i> Podgląd danych i wygenerowanych wiadomości (pierwsze 8 wierszy)
                         </h3>
-                        <div class="overflow-x-auto">
-                            <table class="w-full text-left text-xs">
+                        <div class="overflow-x-auto table-responsive-container">
+                            <table class="w-full min-w-[600px] text-left text-xs">
                                 <thead id="csvPreviewThead" class="bg-slate-50 dark:bg-slate-700/50 uppercase font-semibold text-slate-500"></thead>
                                 <tbody id="csvPreviewTbody" class="divide-y divide-slate-100 dark:divide-slate-700/50"></tbody>
                             </table>
@@ -834,8 +887,8 @@
                         </div>
 
                         <!-- Contacts Table -->
-                        <div class="overflow-x-auto rounded-xl border border-slate-100 dark:border-slate-700">
-                            <table class="w-full text-left text-xs">
+                        <div class="overflow-x-auto table-responsive-container rounded-xl border border-slate-100 dark:border-slate-700">
+                            <table class="w-full min-w-[620px] text-left text-xs">
                                 <thead class="bg-slate-50 dark:bg-slate-700/60 uppercase font-bold text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700">
                                     <tr>
                                         <th class="py-3 px-3.5">Kontrahent / Nazwisko</th>
@@ -980,8 +1033,8 @@
                         </div>
                     </div>
 
-                    <div class="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700">
-                        <table class="w-full text-left text-xs">
+                    <div class="overflow-x-auto table-responsive-container rounded-xl border border-slate-200 dark:border-slate-700">
+                        <table class="w-full min-w-[580px] text-left text-xs">
                             <thead class="bg-slate-50 dark:bg-slate-700/60 uppercase font-bold text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700">
                                 <tr>
                                     <th class="py-3 px-3.5">Etykieta / Nazwa</th>
@@ -1035,8 +1088,8 @@
                         <h3 class="font-bold text-base text-slate-800 dark:text-white flex items-center gap-2 pb-2 border-b border-slate-100 dark:border-slate-700/60">
                             <i class="fa-solid fa-shield-halved text-slate-500"></i> Zablokowane numery
                         </h3>
-                        <div class="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700">
-                            <table class="w-full text-left text-xs">
+                        <div class="overflow-x-auto table-responsive-container rounded-xl border border-slate-200 dark:border-slate-700">
+                            <table class="w-full min-w-[420px] text-left text-xs">
                                 <thead class="bg-slate-50 dark:bg-slate-700/60 uppercase font-bold text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700">
                                     <tr>
                                         <th class="py-3 px-3.5">Numer telefonu</th>
@@ -1122,8 +1175,8 @@
                     </div>
 
                     <!-- Scrollable Table Container with Custom Scrollbar & Sticky Header -->
-                    <div class="overflow-x-auto overflow-y-auto max-h-[62vh] custom-scrollbar rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
-                        <table class="w-full text-left text-xs">
+                    <div class="overflow-x-auto overflow-y-auto max-h-[62vh] custom-scrollbar table-responsive-container rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+                        <table class="w-full min-w-[820px] text-left text-xs">
                             <thead class="bg-slate-50 dark:bg-slate-700/80 uppercase font-bold text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700 sticky top-0 z-10 shadow-sm backdrop-blur-sm">
                                 <tr>
                                     <th class="py-2.5 px-3 whitespace-nowrap">Data i czas</th>
@@ -1286,8 +1339,8 @@
                         </button>
                     </div>
 
-                    <div class="overflow-x-auto">
-                        <table class="w-full text-left text-xs">
+                    <div class="overflow-x-auto table-responsive-container">
+                        <table class="w-full min-w-[540px] text-left text-xs">
                             <thead class="bg-slate-50 dark:bg-slate-700/50 uppercase font-semibold text-slate-500">
                                 <tr>
                                     <th class="py-2.5 px-3">Login</th>
@@ -1543,8 +1596,8 @@
                             <span><i class="fa-solid fa-table-list mr-1 text-emerald-500"></i> Podgląd danych po zmapowaniu (pierwsze wiersze):</span>
                             <span id="importTotalRowsBadge" class="text-[10px] bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 px-2 py-0.5 rounded-full font-bold"></span>
                         </div>
-                        <div class="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
-                            <table class="w-full text-[11px] text-left border-collapse">
+                        <div class="overflow-x-auto table-responsive-container rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+                            <table class="w-full min-w-[500px] text-[11px] text-left border-collapse">
                                 <thead class="bg-slate-50 dark:bg-slate-700/50 text-slate-500 border-b border-slate-200 dark:border-slate-700">
                                     <tr>
                                         <th class="p-2 font-semibold">Telefon</th>
@@ -1626,8 +1679,8 @@
             </div>
 
             <!-- Members Table / List with Fixed Height & Fast Virtual Chunk Rendering -->
-            <div class="flex-1 overflow-y-auto max-h-[50vh] custom-scrollbar rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
-                <table class="w-full text-left text-xs">
+            <div class="flex-1 overflow-x-auto overflow-y-auto max-h-[50vh] custom-scrollbar table-responsive-container rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+                <table class="w-full min-w-[560px] text-left text-xs">
                     <thead class="bg-slate-50 dark:bg-slate-700/60 uppercase font-bold text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700 sticky top-0 z-10 shadow-sm backdrop-blur-sm">
                         <tr>
                             <th class="py-2.5 px-3 w-10 text-center">
@@ -2018,6 +2071,11 @@
             if (normTabId === 'shorturl' || normTabId === 'shorturl-hlr') fetchShortUrls();
             if (normTabId === 'blacklist') fetchBlacklist();
             if (normTabId === 'settings') { fetchConfig(); fetchSenders(); fetchUsers(); }
+
+            // Reset scroll position to top on tab change for both mobile window & desktop scrollable container
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            const mainContainer = document.getElementById('mainContentScroll');
+            if (mainContainer) mainContainer.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
         // Theme Toggle
