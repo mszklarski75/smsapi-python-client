@@ -296,7 +296,7 @@
                     <!-- Quick SMS Widget -->
                     <div class="lg:col-span-1 bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col justify-between">
                         <div>
-                            <div class="flex items-center justify-between mb-4">
+                            <div class="flex items-center justify-between mb-3">
                                 <h2 class="font-bold text-base flex items-center gap-2">
                                     <i class="fa-solid fa-bolt text-amber-500"></i> Szybki SMS
                                 </h2>
@@ -305,22 +305,50 @@
 
                             <form id="quickSendForm" onsubmit="handleQuickSend(event)" class="space-y-3">
                                 <div>
-                                    <label class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Numer telefonu</label>
-                                    <input type="text" id="quickTo" placeholder="np. 48500100200" required class="w-full px-3.5 py-2 text-sm rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700/50 focus:ring-2 focus:ring-blue-500 outline-none">
+                                    <label class="block text-xs font-semibold uppercase text-slate-500 dark:text-slate-400 mb-1">Numer telefonu</label>
+                                    <input type="text" id="quickTo" placeholder="np. 48500100200, 500100200" required class="w-full px-3.5 py-2 text-sm rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700/50 text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none font-mono">
                                 </div>
                                 <div>
-                                    <label class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Treść wiadomości</label>
-                                    <textarea id="quickMessage" rows="3" placeholder="Wpisz treść szybkiego SMS..." required class="w-full px-3.5 py-2 text-sm rounded-xl border border-slate-300 dark:border-slate-600 dark:bg-slate-700/50 focus:ring-2 focus:ring-blue-500 outline-none resize-none"></textarea>
+                                    <div class="flex items-center justify-between mb-1">
+                                        <label class="block text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">Treść wiadomości</label>
+                                        <div class="flex items-center gap-2 text-xs">
+                                            <span id="quickCharCounter" class="font-bold text-slate-700 dark:text-slate-200">0 / 160 zn.</span>
+                                            <span id="quickPartsBadge" class="px-2 py-0.5 bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 rounded font-semibold text-[11px]">1 SMS</span>
+                                        </div>
+                                    </div>
+                                    <textarea id="quickMessage" rows="3" placeholder="Wpisz treść szybkiego SMS..." required oninput="calculateQuickSmsMetrics()" class="w-full px-3.5 py-2 text-sm rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700/50 text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none resize-none"></textarea>
+
+                                    <!-- Quick Unicode Warning Banner -->
+                                    <div id="quickUnicodeWarning" class="hidden mt-1.5 p-2 rounded-xl bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300 text-xs flex items-center justify-between gap-2">
+                                        <div class="flex items-center gap-1.5 truncate">
+                                            <i class="fa-solid fa-triangle-exclamation text-amber-500 shrink-0"></i>
+                                            <span class="truncate">Wykryto znaki PL / Unicode (limit 70 zn./SMS)</span>
+                                        </div>
+                                        <button type="button" onclick="normalizeQuickMessageChars()" class="px-2 py-0.5 bg-amber-200 hover:bg-amber-300 dark:bg-amber-800 dark:hover:bg-amber-700 text-amber-900 dark:text-amber-100 rounded-lg font-bold text-[11px] whitespace-nowrap transition-colors">
+                                            Usuń znaki PL
+                                        </button>
+                                    </div>
                                 </div>
-                                <button type="submit" id="btnQuickSend" class="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-medium text-sm transition-colors flex items-center justify-center gap-2 shadow-sm">
+
+                                <div class="flex items-center justify-between gap-2 py-0.5">
+                                    <label class="flex items-center gap-2 text-xs font-medium cursor-pointer text-slate-600 dark:text-slate-300">
+                                        <input type="checkbox" id="chkQuickNormalize" class="rounded text-blue-600 focus:ring-blue-500">
+                                        <span>Autokonwersja (Normalize)</span>
+                                    </label>
+                                    <button type="button" onclick="normalizeQuickMessageChars()" class="text-[11px] text-blue-600 dark:text-blue-400 hover:underline font-semibold" title="Zamienia ą, ę, ć na a, e, c w polu powyżej">
+                                        <i class="fa-solid fa-wand-magic-sparkles"></i> Zamień znaki PL
+                                    </button>
+                                </div>
+
+                                <button type="submit" id="btnQuickSend" class="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-sm transition-colors flex items-center justify-center gap-2 shadow-md shadow-blue-500/20">
                                     <i class="fa-solid fa-paper-plane"></i> Wyślij szybki SMS
                                 </button>
                             </form>
                         </div>
 
-                        <div class="mt-4 pt-4 border-t border-slate-100 dark:border-slate-700/50 flex items-center justify-between text-xs text-slate-500">
+                        <div class="mt-4 pt-3 border-t border-slate-100 dark:border-slate-700/50 flex items-center justify-between text-xs text-slate-500">
                             <span>Więcej opcji (nadawca, szablony, masowe):</span>
-                            <button onclick="switchTab('sms-send')" class="text-blue-600 hover:underline font-medium">Otwórz edytor</button>
+                            <button onclick="switchTab('sms-send')" class="text-blue-600 dark:text-blue-400 hover:underline font-semibold">Otwórz edytor &rarr;</button>
                         </div>
                     </div>
 
@@ -2734,12 +2762,62 @@
             document.getElementById('recipientCountBadge').textContent = `${list.length} ${list.length === 1 ? 'numer' : 'numerów'}`;
         }
 
+        // Quick SMS Metrics & Polish Characters Replacement
+        function calculateQuickSmsMetrics() {
+            const text = document.getElementById('quickMessage')?.value || '';
+            let isUnicode = false;
+            for (let i = 0; i < text.length; i++) {
+                if (!gsm7Chars.includes(text[i])) {
+                    isUnicode = true;
+                    break;
+                }
+            }
+
+            const unicodeWarning = document.getElementById('quickUnicodeWarning');
+            if (unicodeWarning) {
+                if (isUnicode && text.length > 0) {
+                    unicodeWarning.classList.remove('hidden');
+                } else {
+                    unicodeWarning.classList.add('hidden');
+                }
+            }
+
+            let maxSingle = isUnicode ? 70 : 160;
+            let maxConcat = isUnicode ? 67 : 153;
+            let charLen = text.length;
+            let parts = 1;
+
+            if (charLen > maxSingle) {
+                parts = Math.ceil(charLen / maxConcat);
+            }
+
+            const counterEl = document.getElementById('quickCharCounter');
+            const badgeEl = document.getElementById('quickPartsBadge');
+            if (counterEl) counterEl.textContent = `${charLen} / ${parts > 1 ? parts * maxConcat : maxSingle} zn.`;
+            if (badgeEl) badgeEl.textContent = `${parts} ${parts === 1 ? 'SMS' : 'SMS-y'}${isUnicode ? ' (Unicode)' : ''}`;
+        }
+
+        function normalizeQuickMessageChars() {
+            const txtArea = document.getElementById('quickMessage');
+            if (!txtArea) return;
+            let txt = txtArea.value;
+            let normalized = '';
+            for (let i = 0; i < txt.length; i++) {
+                normalized += plMap[txt[i]] || txt[i];
+            }
+            txtArea.value = normalized;
+            calculateQuickSmsMetrics();
+        }
+
         // Quick Send Handler
         async function handleQuickSend(e) {
             e.preventDefault();
             const to = document.getElementById('quickTo').value.trim();
             const message = document.getElementById('quickMessage').value.trim();
+            const normalize = document.getElementById('chkQuickNormalize')?.checked;
             const btn = document.getElementById('btnQuickSend');
+
+            if (!to || !message) return;
 
             btn.disabled = true;
             btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Wysyłanie...`;
@@ -2748,12 +2826,19 @@
                 const res = await fetch('/api/sms/send', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ to, message })
+                    body: JSON.stringify({ to, message, normalize })
                 });
                 const data = await res.json();
                 if (data.success) {
-                    Swal.fire({ icon: 'success', title: 'Wysłano pomyślnie!', text: data.message });
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Wysłano pomyślnie!',
+                        text: data.message,
+                        timer: 2000,
+                        showConfirmButton: false
+                    });
                     document.getElementById('quickSendForm').reset();
+                    calculateQuickSmsMetrics();
                     fetchBalance();
                     fetchStats();
                     fetchRecentHistory();
