@@ -256,6 +256,40 @@ def get_smsapi_client():
         return SmsApiPlClient(access_token=token)
 
 
+def format_smsapi_error(e):
+    """Converts SMSAPI exception or error code into a user-friendly Polish explanation."""
+    code = getattr(e, 'code', None)
+    msg = getattr(e, 'message', str(e))
+    if isinstance(msg, dict):
+        code = code or msg.get('code') or msg.get('error')
+        msg = msg.get('message', str(e))
+
+    msg_str = str(msg).lower()
+
+    if code == 110 or 'access forbiden' in msg_str or 'access forbidden' in msg_str:
+        if 'vms' in msg_str:
+            return "Błąd 110 (VMS access forbidden): Usługa połączeń głosowych VMS nie jest aktywna na Twoim koncie SMSAPI lub Twój token API nie posiada uprawnień do VMS. Aby bezpłatnie odblokować moduł VMS, skontaktuj się z BOK SMSAPI (bok@smsapi.pl)."
+        elif 'mms' in msg_str:
+            return "Błąd 110 (MMS access forbidden): Usługa MMS nie jest aktywna na Twoim koncie SMSAPI lub Twój token API nie posiada uprawnień do MMS. Skontaktuj się z BOK SMSAPI (bok@smsapi.pl), aby ją włączyć."
+        elif 'eco' in msg_str:
+            return "Błąd 110 (ECO access forbidden): Wysyłka SMS ECO nie jest dozwolona dla Twojego konta."
+        return f"Błąd 110: Brak uprawnień do tej usługi na Twoim koncie SMSAPI ({msg}). Skontaktuj się z BOK SMSAPI (bok@smsapi.pl)."
+    elif code == 101 or 'authorization failed' in msg_str:
+        return "Błąd 101: Błędne dane autoryzacyjne lub nieprawidłowy token API SMSAPI."
+    elif code in (102, 103) or 'not enough points' in msg_str:
+        return "Błąd 102/103: Brak wystarczającej liczby punktów na koncie SMSAPI na tę wysyłkę."
+    elif code == 104:
+        return "Błąd 104: Brak profilu cenowego lub usługa niedostępna."
+    elif code == 105:
+        return "Błąd 105: Błędny lub niepoprawny numer telefonu odbiorcy."
+    elif code == 14:
+        return "Błąd 14: Nieprawidłowe lub niezweryfikowane pole nadawcy (Sender ID)."
+    elif code == 11:
+        return "Błąd 11: Zbyt długa treść wiadomości lub niedozwolone znaki."
+
+    return str(msg)
+
+
 # ==========================================================
 # API Routes: Authentication (Login / Logout / Current User / Usernames List)
 # ==========================================================
@@ -686,11 +720,11 @@ def send_sms():
         })
 
     except SmsApiException as e:
-        err_msg = str(e)
+        err_msg = format_smsapi_error(e)
         log_history('SMS', ', '.join(recipients[:5]), from_sender or '', message, 'ERROR', 0.0, '', '', err_msg)
         return jsonify({'success': False, 'error': f'Błąd SMSAPI: {err_msg}'}), 400
     except Exception as e:
-        err_msg = str(e)
+        err_msg = format_smsapi_error(e)
         log_history('SMS', ', '.join(recipients[:5]), from_sender or '', message, 'ERROR', 0.0, '', '', err_msg)
         return jsonify({'success': False, 'error': f'Wystąpił błąd: {err_msg}'}), 500
 
@@ -818,7 +852,7 @@ def send_mfa():
 
         return jsonify({'success': True, 'message': f'Kod 2FA wysłany na numer {phone_number}.', 'id': code_id, 'phone_number': phone})
     except Exception as e:
-        return jsonify({'success': False, 'error': f'Błąd wysyłki MFA: {str(e)}'}), 400
+        return jsonify({'success': False, 'error': f'Błąd wysyłki MFA: {format_smsapi_error(e)}'}), 400
 
 
 @app.route('/api/mfa/verify', methods=['POST'])
@@ -836,8 +870,9 @@ def verify_mfa():
         log_history(msg_type='MFA_WERYFIKACJA', recipients=phone_number, sender='SYSTEM', message=f'Weryfikacja OTP: {code}', status='VERIFIED', points_cost=0.0)
         return jsonify({'success': True, 'message': f'Kod OTP dla numeru {phone_number} jest PRAWIDŁOWY!', 'data': str(result)})
     except Exception as e:
-        log_history(msg_type='MFA_WERYFIKACJA', recipients=phone_number, sender='SYSTEM', message=f'Błędny OTP: {code}', status='FAILED', error_message=str(e))
-        return jsonify({'success': False, 'error': f'Nieprawidłowy kod OTP: {str(e)}'}), 400
+        err_msg = format_smsapi_error(e)
+        log_history(msg_type='MFA_WERYFIKACJA', recipients=phone_number, sender='SYSTEM', message=f'Błędny OTP: {code}', status='FAILED', error_message=err_msg)
+        return jsonify({'success': False, 'error': f'Nieprawidłowy kod OTP: {err_msg}'}), 400
 
 
 # ==========================================================
@@ -866,7 +901,7 @@ def send_vms():
         log_history(msg_type='VMS_GLOSOWY', recipients=to_number, sender=f'Lektor: {tts_lector}', message=tts_text, status='SENT')
         return jsonify({'success': True, 'message': f'Wiadomość głosowa VMS została zakolejkowana.', 'result': str(result)})
     except Exception as e:
-        return jsonify({'success': False, 'error': f'Błąd wysyłki VMS: {str(e)}'}), 400
+        return jsonify({'success': False, 'error': f'Błąd wysyłki VMS: {format_smsapi_error(e)}'}), 400
 
 
 @app.route('/api/mms/send', methods=['POST'])
@@ -888,7 +923,7 @@ def send_mms():
         log_history(msg_type='MMS', recipients=to_number, sender='SMSAPI MMS', message=f"Temat: {subject}", status='SENT')
         return jsonify({'success': True, 'message': f'Wiadomość MMS została wysłana.', 'result': str(result)})
     except Exception as e:
-        return jsonify({'success': False, 'error': f'Błąd wysyłki MMS: {str(e)}'}), 400
+        return jsonify({'success': False, 'error': f'Błąd wysyłki MMS: {format_smsapi_error(e)}'}), 400
 
 
 # ==========================================================
@@ -899,14 +934,23 @@ def check_hlr():
     data = request.json or {}
     number = data.get('number', '').strip()
     if not number:
-        return jsonify({'success': False, 'error': 'Podaj numer telefonu.'}), 400
+        return jsonify({'success': False, 'error': 'Numer telefonu jest wymagany.'}), 400
 
     try:
         client = get_smsapi_client()
-        res = client.hlr.check_number(number=number)
-        return jsonify({'success': True, 'number': getattr(res, 'number', number), 'status': getattr(res, 'status', 'OK'), 'price': getattr(res, 'price', 0)})
+        result = client.hlr.check_number(number=number)
+        log_history(msg_type='HLR_LOOKUP', recipients=number, sender='HLR', message='Sprawdzenie sieci operatora', status='SUCCESS')
+        return jsonify({'success': True, 'data': {
+            'id': getattr(result, 'id', None),
+            'number': getattr(result, 'number', number),
+            'status': getattr(result, 'status', 'OK'),
+            'mcc_mnc': getattr(result, 'mccmnc', None),
+            'network': getattr(result, 'network', None),
+            'ported': getattr(result, 'ported', False),
+            'price': getattr(result, 'price', 0.0)
+        }})
     except Exception as e:
-        return jsonify({'success': False, 'error': f'Błąd HLR: {str(e)}'}), 400
+        return jsonify({'success': False, 'error': f'Błąd HLR: {format_smsapi_error(e)}'}), 400
 
 
 @app.route('/api/shorturl', methods=['GET'])
